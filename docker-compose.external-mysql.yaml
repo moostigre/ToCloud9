@@ -1,0 +1,61 @@
+services:
+  # The production schemas live in the host MySQL server. Keep the bundled
+  # database available only for explicit local/setup use.
+  database-ac:
+    profiles: !override [internal-db]
+
+  # The host authserver already serves the same external auth schema and
+  # advertises the cluster realm, so do not compete for port 3724.
+  authserver:
+    profiles: !override [internal-auth]
+
+  gateway:
+    depends_on:
+      database-ac: !reset null
+  gateway-second:
+    depends_on:
+      database-ac: !reset null
+  charserver:
+    depends_on:
+      database-ac: !reset null
+  chatserver:
+    depends_on:
+      database-ac: !reset null
+  guildserver:
+    depends_on:
+      database-ac: !reset null
+  guidserver:
+    depends_on:
+      database-ac: !reset null
+  mailserver:
+    depends_on:
+      database-ac: !reset null
+  auctionhouse:
+    depends_on:
+      database-ac: !reset null
+      nats:
+        condition: service_started
+  groupserver:
+    depends_on:
+      database-ac: !reset null
+      nats:
+        condition: service_started
+  matchmakingserver:
+    depends_on:
+      database-ac: !reset null
+      nats:
+        condition: service_started
+  gameserver-ac:
+    depends_on:
+      database-ac: !reset null
+    environment:
+      AC_UPDATES_ENABLE_DATABASES: 0
+    volumes:
+      - /data/tc9-gameserver-data:/data:ro
+  gameserver-ac-layer-2:
+    depends_on:
+      database-ac: !reset null
+    environment:
+      AC_UPDATES_ENABLE_DATABASES: 0
+    volumes:
+      - /data/tc9-gameserver-data:/data:ro
