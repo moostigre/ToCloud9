@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
@@ -222,6 +223,9 @@ func (s *GameSession) HandleEventIncomingWhisperMessage(ctx context.Context, e *
 
 // TODO: rewrite commands handler with some better and more manageable constructions.
 func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) ( /* isHandled */ bool, error) {
+	if msg == ".layer" || strings.HasPrefix(msg, ".layer ") {
+		return true, s.handleLayerCommand(ctx, strings.Fields(msg))
+	}
 	const TC9CommandPrefix = ".tc9 "
 	if !strings.HasPrefix(msg, TC9CommandPrefix) {
 		return false, nil
@@ -262,6 +266,59 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 		s.SendSysMessage("unk command")
 	}
 	return true, nil
+}
+
+func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) error {
+	if s.character == nil {
+		return nil
+	}
+	if len(args) == 1 {
+		stats, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
+		})
+		if err != nil {
+			return err
+		}
+		s.SendSysMessage(fmt.Sprintf("Map %d has %d configured layers; you are on layer %d.", s.character.Map, stats.ConfiguredLayers, s.currentLayerID))
+		for _, layer := range stats.Layers {
+			marker := ""
+			if layer.LayerID == s.currentLayerID {
+				marker = " (you)"
+			}
+			s.SendSysMessage(fmt.Sprintf("Layer %d: approximately %d players, gameserver %s%s", layer.LayerID, layer.Players, layer.GameServerID, marker))
+		}
+		return nil
+	}
+	if len(args) != 3 || strings.ToLower(args[1]) != "switch" {
+		s.SendSysMessage("Usage: .layer | .layer switch <number>")
+		return nil
+	}
+	layerID, err := strconv.ParseUint(args[2], 10, 32)
+	if err != nil || layerID == 0 {
+		s.SendSysMessage("Layer number must be a positive integer.")
+		return nil
+	}
+	selection, err := s.selectLayerGameServer(ctx, 0, uint32(layerID))
+	if err != nil {
+		return err
+	}
+	if selection == nil || selection.Status == pbServ.SelectGameServerForPlayerResponse_LAYER_NOT_FOUND {
+		s.SendSysMessage("That layer does not exist.")
+		return nil
+	}
+	if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK || selection.GameServer == nil {
+		s.SendSysMessage("That layer has no available gameserver for this map.")
+		return nil
+	}
+	if selection.GameServer.ID == s.currentGameServerID {
+		s.SendSysMessage(fmt.Sprintf("You are already on layer %d.", layerID))
+		return nil
+	}
+	s.SendSysMessage(fmt.Sprintf("Switching to layer %d.", layerID))
+	if err := s.redirectToSelectedLayer(ctx, selection.GameServer); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {

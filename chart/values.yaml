@@ -47,6 +47,9 @@ servers_registry:
     type: ClusterIP
     internalPort: 8999
     externalPort: 8999
+  layering:
+    # Fixed per-map layer counts. Runtime updates are persisted in Redis.
+    maps: []
 
 authserver:
   replicaCount: 1
@@ -162,6 +165,8 @@ gateway:
     type: NodePort
 
 gameserver_ac:
+  # Each gameserver participating in layering must use a unique non-zero ID.
+  layerID: 0
   initcontainer:
     # If true - downloads assets and unzip them if pvc is empty.
     download_enabled: true

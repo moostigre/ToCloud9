@@ -16,6 +16,7 @@ Config::Config() {
     matchmaking_address_ = GetEnv("TC9_MATCHMAKING_ADDRESS", "localhost:8994");
     guid_provider_address_ = GetEnv("TC9_GUID_PROVIDER_ADDRESS", "localhost:8996");
     nats_url_ = GetEnv("TC9_NATS_URL", "nats://localhost:4222");
+    layer_id_ = GetEnvInt("TC9_LAYER_ID", 0);
 
     character_guids_buffer_size_ = GetEnvInt("TC9_CHARACTER_GUIDS_BUFFER_SIZE", 50);
     item_guids_buffer_size_ = GetEnvInt("TC9_ITEM_GUIDS_BUFFER_SIZE", 200);

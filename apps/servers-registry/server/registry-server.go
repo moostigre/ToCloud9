@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -20,12 +21,14 @@ type serversRegistry struct {
 	pb.UnimplementedServersRegistryServiceServer
 	gService  service.GameServer
 	lbService service.Gateway
+	layer     service.Layer
 }
 
-func NewServersRegistry(gService service.GameServer, lbService service.Gateway) pb.ServersRegistryServiceServer {
+func NewServersRegistry(gService service.GameServer, lbService service.Gateway, layer service.Layer) pb.ServersRegistryServiceServer {
 	return &serversRegistry{
 		gService:  gService,
 		lbService: lbService,
+		layer:     layer,
 	}
 }
 
@@ -46,17 +49,36 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		RealmID:         request.RealmID,
 		IsCrossRealm:    request.IsCrossRealm,
 		AvailableMaps:   stringToAvailableMaps(request.AvailableMaps),
+		LayerID:         request.LayerID,
 	}
 
 	err := s.gService.Register(ctx, gameServer)
 	if err != nil {
 		return nil, err
 	}
+	config, err := s.layer.Configuration(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.gService.ConfigureLayers(ctx, request.RealmID, config); err != nil {
+		return nil, err
+	}
+	registered, err := s.gService.ListForRealm(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range registered {
+		if registered[i].ID == gameServer.ID {
+			gameServer.AssignedMapsToHandle = registered[i].AssignedMapsToHandle
+			break
+		}
+	}
 
 	return &pb.RegisterGameServerResponse{
 		Api:          ver,
 		Id:           gameServer.ID,
 		AssignedMaps: gameServer.AssignedMapsToHandle,
+		LayerID:      gameServer.LayerID,
 	}, nil
 }
 
@@ -69,10 +91,12 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	resultServers := make([]*pb.Server, 0, len(servers))
 	for i := range servers {
 		resultServers = append(resultServers, &pb.Server{
+			ID:           servers[i].ID,
 			Address:      servers[i].Address,
 			RealmID:      servers[i].RealmID,
 			IsCrossRealm: servers[i].IsCrossRealm,
 			GrpcAddress:  servers[i].GRPCAddress,
+			LayerID:      servers[i].LayerID,
 		})
 	}
 
@@ -109,6 +133,7 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			LayerID:           servers[i].LayerID,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,
@@ -142,6 +167,7 @@ func (s *serversRegistry) ListAllGameServers(ctx context.Context, request *pb.Li
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			LayerID:           servers[i].LayerID,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,
@@ -259,6 +285,72 @@ func (s *serversRegistry) ListGatewaysForRealm(ctx context.Context, request *pb.
 		Api:      ver,
 		Gateways: result,
 	}, nil
+}
+
+func (s *serversRegistry) SelectGameServerForPlayer(ctx context.Context, request *pb.SelectGameServerForPlayerRequest) (*pb.SelectGameServerForPlayerResponse, error) {
+	selection, err := s.layer.Select(ctx, request.RealmID, request.MapID, request.GroupID, request.ForcedLayerID)
+	if err != nil {
+		return nil, err
+	}
+	response := &pb.SelectGameServerForPlayerResponse{Api: ver}
+	switch selection.Status {
+	case service.LayerSelectionNoServer:
+		response.Status = pb.SelectGameServerForPlayerResponse_NO_SERVER
+	case service.LayerSelectionNotFound:
+		response.Status = pb.SelectGameServerForPlayerResponse_LAYER_NOT_FOUND
+	default:
+		response.Status = pb.SelectGameServerForPlayerResponse_OK
+		response.LayerID = selection.Server.LayerID
+		response.GameServer = &pb.Server{ID: selection.Server.ID, Address: selection.Server.Address, RealmID: selection.Server.RealmID, GrpcAddress: selection.Server.GRPCAddress, LayerID: selection.Server.LayerID}
+	}
+	return response, nil
+}
+
+func (s *serversRegistry) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
+	if err := s.layer.BindGroup(ctx, request.RealmID, request.GroupID, request.MapID, request.GameServerID); err != nil {
+		return nil, err
+	}
+	return &pb.BindGroupToGameServerResponse{Api: ver}, nil
+}
+
+func (s *serversRegistry) GetMapLayerConfiguration(ctx context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
+	config, err := s.layer.Configuration(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+	mapIDs := make([]uint32, 0, len(config))
+	for mapID := range config {
+		mapIDs = append(mapIDs, mapID)
+	}
+	sort.Slice(mapIDs, func(i, j int) bool { return mapIDs[i] < mapIDs[j] })
+	response := &pb.GetMapLayerConfigurationResponse{Api: ver}
+	for _, mapID := range mapIDs {
+		response.Maps = append(response.Maps, &pb.MapLayerConfiguration{MapID: mapID, LayerCount: config[mapID]})
+	}
+	return response, nil
+}
+
+func (s *serversRegistry) UpdateMapLayerConfiguration(ctx context.Context, request *pb.UpdateMapLayerConfigurationRequest) (*pb.UpdateMapLayerConfigurationResponse, error) {
+	config := make(map[uint32]uint32, len(request.Maps))
+	for _, item := range request.Maps {
+		config[item.MapID] = item.LayerCount
+	}
+	if err := s.layer.UpdateConfiguration(ctx, request.RealmID, config); err != nil {
+		return nil, err
+	}
+	return &pb.UpdateMapLayerConfigurationResponse{Api: ver}, nil
+}
+
+func (s *serversRegistry) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
+	configured, stats, err := s.layer.Stats(ctx, request.RealmID, request.MapID)
+	if err != nil {
+		return nil, err
+	}
+	response := &pb.GetLayerStatsResponse{Api: ver, ConfiguredLayers: configured}
+	for _, stat := range stats {
+		response.Layers = append(response.Layers, &pb.GetLayerStatsResponse_Layer{LayerID: stat.LayerID, Players: stat.Players, GameServerID: stat.Server.ID, Address: stat.Server.Address})
+	}
+	return response, nil
 }
 
 func removePortFromAddress(address string) string {

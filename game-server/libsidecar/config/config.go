@@ -37,6 +37,8 @@ type Config struct {
 
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://localhost:4222"`
+
+	LayerID uint32 `yaml:"layerID" env:"LAYER_ID" env-default:"0"`
 }
 
 // LoadConfig loads config from env variables

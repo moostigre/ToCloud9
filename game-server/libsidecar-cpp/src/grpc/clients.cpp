@@ -77,6 +77,7 @@ bool GrpcClients::RegisterGameServer(
     bool is_cross_realm,
     const std::string& available_maps,
     const std::string& preferred_hostname,
+    uint32_t layer_id,
     std::string& out_server_id,
     std::vector<uint32_t>& out_assigned_maps) {
 
@@ -94,6 +95,7 @@ bool GrpcClients::RegisterGameServer(
     request.set_iscrossrealm(is_cross_realm);
     request.set_availablemaps(available_maps);
     request.set_preferredhostname(preferred_hostname);
+    request.set_layerid(layer_id);
 
     v1::RegisterGameServerResponse response;
     grpc::ClientContext context;

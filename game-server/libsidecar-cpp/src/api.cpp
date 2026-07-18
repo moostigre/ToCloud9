@@ -133,6 +133,7 @@ TC9_API void TC9InitLib(
             isCrossRealm,
             availableMaps ? availableMaps : "",
             "",  // preferred hostname (empty = auto)
+            static_cast<uint32_t>(config.layer_id()),
             server_id,
             assigned_maps_vec
         );

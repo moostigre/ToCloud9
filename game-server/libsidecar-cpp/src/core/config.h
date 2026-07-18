@@ -18,6 +18,7 @@ public:
     std::string matchmaking_address() const { return matchmaking_address_; }
     std::string guid_provider_address() const { return guid_provider_address_; }
     std::string nats_url() const { return nats_url_; }
+    int layer_id() const { return layer_id_; }
 
     // Buffer sizes
     int character_guids_buffer_size() const { return character_guids_buffer_size_; }
@@ -51,6 +52,7 @@ private:
     std::string matchmaking_address_;
     std::string guid_provider_address_;
     std::string nats_url_;
+    int layer_id_;
     int character_guids_buffer_size_;
     int item_guids_buffer_size_;
     int instance_guids_buffer_size_;

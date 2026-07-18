@@ -31,6 +31,7 @@ public:
         bool is_cross_realm,
         const std::string& available_maps,
         const std::string& preferred_hostname,
+        uint32_t layer_id,
         std::string& out_server_id,
         std::vector<uint32_t>& out_assigned_maps);
 

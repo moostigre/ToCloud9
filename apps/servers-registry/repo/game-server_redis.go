@@ -48,26 +48,33 @@ func (g *gameServerRedisRepo) Upsert(ctx context.Context, server *GameServer) er
 }
 
 func (g *gameServerRedisRepo) Update(ctx context.Context, id string, f func(*GameServer) *GameServer) error {
-	res := g.rdb.Get(ctx, g.key(id))
-	if res.Err() != nil {
-		return res.Err()
+	key := g.key(id)
+	for attempt := 0; attempt < 5; attempt++ {
+		err := g.rdb.Watch(ctx, func(tx *redis.Tx) error {
+			value, err := tx.Get(ctx, key).Bytes()
+			if err != nil {
+				return err
+			}
+			server := &GameServer{}
+			if err := json.Unmarshal(value, server); err != nil {
+				return err
+			}
+			updated := f(server)
+			data, err := json.Marshal(updated)
+			if err != nil {
+				return err
+			}
+			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				pipe.Set(ctx, g.key(updated.ID), data, 0)
+				return nil
+			})
+			return err
+		}, key)
+		if !errors.Is(err, redis.TxFailedErr) {
+			return err
+		}
 	}
-
-	v := &GameServer{}
-	err := json.Unmarshal([]byte(res.Val()), v)
-	if err != nil {
-		return err
-	}
-
-	newV := f(v)
-	d, err := json.Marshal(newV)
-	if err != nil {
-		return err
-	}
-
-	key := g.key(newV.ID)
-	status := g.rdb.Set(ctx, key, d, 0)
-	return status.Err()
+	return redis.TxFailedErr
 }
 
 func (g *gameServerRedisRepo) Remove(ctx context.Context, id string) error {

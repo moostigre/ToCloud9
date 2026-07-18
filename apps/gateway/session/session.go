@@ -15,11 +15,11 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/service"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets/worldsocket"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
-	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMatchmaking "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -93,6 +93,9 @@ type GameSession struct {
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
+	currentGameServerID              string
+	currentLayerID                   uint32
+	currentGroupID                   uint32
 }
 
 type GameSessionParams struct {
@@ -440,28 +443,38 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		mapIDToLogin = *mapID
 	}
 
-	serversResult, err := s.serversRegistryClient.AvailableGameServersForMapAndRealm(s.ctx, &pbServ.AvailableGameServersForMapAndRealmRequest{
-		Api:     root.SupportedCharServiceVer,
-		RealmID: root.RealmID,
-		MapID:   mapIDToLogin,
+	groupID := s.currentGroupID
+	if groupID == 0 && s.groupServiceClient != nil {
+		if group, groupErr := s.groupServiceClient.GetGroupIDByPlayer(ctx, &pbGroup.GetGroupIDByPlayerRequest{Api: root.SupportedGroupServiceVer, RealmID: root.RealmID, Player: characterGUID}); groupErr == nil {
+			groupID = group.GroupID
+			s.currentGroupID = groupID
+		}
+	}
+	selection, err := s.serversRegistryClient.SelectGameServerForPlayer(s.ctx, &pbServ.SelectGameServerForPlayerRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapIDToLogin, GroupID: groupID,
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("can't get available game servers for map, err: %w", err)
+		return nil, nil, fmt.Errorf("can't select game server for map: %w", err)
 	}
 
-	if len(serversResult.GameServers) == 0 {
+	if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK || selection.GameServer == nil {
 		return nil, nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapIDToLogin)
 	}
 
-	s.gameServerGRPCConnMgr.AddAddressMapping(serversResult.GameServers[0].Address, serversResult.GameServers[0].GrpcAddress)
+	selected := selection.GameServer
+	s.gameServerGRPCConnMgr.AddAddressMapping(selected.Address, selected.GrpcAddress)
 
-	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(serversResult.GameServers[0].Address)
+	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(selected.Address)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't get game server grpc client, err: %w", err)
 	}
 
-	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, serversResult.GameServers[0].Address, preLoginHook)
+	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, selected.Address, preLoginHook)
+	if err == nil {
+		s.currentGameServerID = selected.ID
+		s.currentLayerID = selected.LayerID
+	}
 	return r.Character, socket, err
 }
 
@@ -625,6 +638,9 @@ func (s *GameSession) onLoggedOut() {
 	// no longer registered for group events there, so cached group member stats can
 	// go stale (a member logging out would be missed and answered as still online).
 	s.groupMemberStats = nil
+	s.currentGroupID = 0
+	s.currentGameServerID = ""
+	s.currentLayerID = 0
 
 	s.character = nil
 }

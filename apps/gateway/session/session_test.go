@@ -369,12 +369,12 @@ func TestGameSessionLogin(t *testing.T) {
 	}, nil)
 
 	servRegistryMock := &regMock.ServersRegistryServiceClient{}
-	servRegistryMock.On("AvailableGameServersForMapAndRealm", mock.Anything, mock.Anything).Return(&pbServ.AvailableGameServersForMapAndRealmResponse{
-		GameServers: []*pbServ.Server{
-			{
-				Address: "127.0.0.1:8000",
-				RealmID: 1,
-			},
+	servRegistryMock.On("SelectGameServerForPlayer", mock.Anything, mock.Anything).Return(&pbServ.SelectGameServerForPlayerResponse{
+		Status: pbServ.SelectGameServerForPlayerResponse_OK,
+		GameServer: &pbServ.Server{
+			ID:      "world-1",
+			Address: "127.0.0.1:8000",
+			RealmID: 1,
 		},
 	}, nil)
 
