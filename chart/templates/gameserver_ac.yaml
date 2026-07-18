@@ -60,6 +60,20 @@ spec:
           value: nats://{{ .Release.Name }}-nats:4222
         - name: LAYER_ID
           value: "{{ .Values.gameserver_ac.layerID }}"
+        - name: TC9_LAYER_ID
+          value: "{{ .Values.gameserver_ac.layerID }}"
+        - name: TC9_GRPC_PORT
+          value: "{{ .Values.gameserver_ac.service.internalPort | int }}"
+        - name: TC9_HEALTH_CHECK_PORT
+          value: "{{ .Values.gameserver_ac.port_health | int }}"
+        - name: TC9_GUID_PROVIDER_ADDRESS
+          value: {{ .Release.Name }}-guidserver:{{ .Values.guidserver.service.externalPort}}
+        - name: TC9_SERVERS_REGISTRY_ADDRESS
+          value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
+        - name: TC9_MATCHMAKING_ADDRESS
+          value: {{ .Release.Name }}-matchmakingserver:{{ .Values.matchmakingserver.service.externalPort}}
+        - name: TC9_NATS_URL
+          value: nats://{{ .Release.Name }}-nats:4222
         - name: DB_SCHEMA_TYPE
           valueFrom:
             secretKeyRef:

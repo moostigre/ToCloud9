@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
+	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
@@ -46,11 +47,40 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	if err != nil {
 		return fmt.Errorf("connect to layer gameserver gRPC: %w", err)
 	}
-	if err := s.redirectPlayerToGameServer(ctx, s.character.GUID, server.Address); err != nil {
+	// The worldserver handoff is transparent to the game client. Wrap it in the
+	// regular world-transfer packets so the client unloads the previous layer's
+	// objects before it starts processing updates from the selected layer.
+	transferPending, newWorld := layerWorldTransferPackets(
+		s.character.Map,
+		s.character.PositionX,
+		s.character.PositionY,
+		s.character.PositionZ,
+		s.character.PositionO,
+	)
+	s.gameSocket.Send(transferPending)
+
+	if err := s.redirectPlayerToGameServerBeforeAttach(ctx, s.character.GUID, server.Address, func() {
+		s.gameSocket.Send(newWorld)
+	}); err != nil {
 		return err
 	}
+
 	s.gameServerGRPCClient = client
 	s.currentGameServerID = server.ID
 	s.currentLayerID = server.LayerID
 	return nil
+}
+
+func layerWorldTransferPackets(mapID uint32, x, y, z, orientation float32) (*packet.Writer, *packet.Writer) {
+	transferPending := packet.NewWriterWithSize(packet.SMsgTransferPending, 4)
+	transferPending.Uint32(mapID)
+
+	newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 20)
+	newWorld.Uint32(mapID)
+	newWorld.Float32(x)
+	newWorld.Float32(y)
+	newWorld.Float32(z)
+	newWorld.Float32(orientation)
+
+	return transferPending, newWorld
 }

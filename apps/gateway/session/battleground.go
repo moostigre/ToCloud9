@@ -234,6 +234,10 @@ func (s *GameSession) enterBattleground(ctx context.Context) error {
 
 // redirectPlayerToGameServer uses the gateway's existing, client-visible worldserver handoff.
 func (s *GameSession) redirectPlayerToGameServer(ctx context.Context, playerGuid uint64, desiredGameServerAddress string) error {
+	return s.redirectPlayerToGameServerBeforeAttach(ctx, playerGuid, desiredGameServerAddress, nil)
+}
+
+func (s *GameSession) redirectPlayerToGameServerBeforeAttach(ctx context.Context, playerGuid uint64, desiredGameServerAddress string, beforeAttach func()) error {
 	oldServerAddress := s.worldSocket.Address()
 
 	saveAndClosePacket := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
@@ -286,6 +290,9 @@ func (s *GameSession) redirectPlayerToGameServer(ctx context.Context, playerGuid
 		return ctx.Err()
 	}
 
+	if beforeAttach != nil {
+		beforeAttach()
+	}
 	s.worldSocket = newSocket
 
 	if s.showGameserverConnChangeToClient {
