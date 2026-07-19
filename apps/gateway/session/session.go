@@ -76,6 +76,7 @@ type GameSession struct {
 	groupMemberStats map[uint64]events.GroupMemberStatsUpdate
 
 	teleportingToNewMap *uint32
+	pendingWorldPort    *worldPortDestination
 
 	// worldEntryPending is true between the login (or redirect) request and
 	// the first SMsgTimeSyncReq from the world server. During that window the
@@ -453,7 +454,6 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	selection, err := s.serversRegistryClient.SelectGameServerForPlayer(s.ctx, &pbServ.SelectGameServerForPlayerRequest{
 		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapIDToLogin, GroupID: groupID,
 	})
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't select game server for map: %w", err)
 	}

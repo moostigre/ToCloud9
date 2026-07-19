@@ -165,12 +165,25 @@ func (s *GameSession) trackCharacterStats(data []byte) {
 }
 
 func (s *GameSession) InterceptNewWorld(ctx context.Context, p *packet.Packet) error {
-	mapID := p.Reader().Uint32()
+	reader := p.Reader()
+	mapID := reader.Uint32()
 	if s.character.ignoreNextInterceptToNewMap == nil || mapID != *s.character.ignoreNextInterceptToNewMap {
 		s.teleportingToNewMap = &mapID
+		s.pendingWorldPort = &worldPortDestination{
+			mapID: mapID,
+			x:     reader.Float32(),
+			y:     reader.Float32(),
+			z:     reader.Float32(),
+			o:     reader.Float32(),
+		}
 	}
 	s.gameSocket.SendPacket(p)
 	return nil
+}
+
+type worldPortDestination struct {
+	mapID      uint32
+	x, y, z, o float32
 }
 
 func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.Packet) error {
@@ -198,11 +211,9 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 		RealmID: root.RealmID,
 		MapID:   mapID,
 	})
-
 	if err != nil {
 		return err
 	}
-
 	if len(serversResult.GameServers) == 0 {
 		return fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapID)
 	}
@@ -211,6 +222,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	desiredServerAddress := serversResult.GameServers[0].Address
 
 	if desiredServerAddress == oldServerAddress {
+		s.pendingWorldPort = nil
 		return nil
 	}
 
@@ -246,6 +258,27 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	if !isReadyForRedirect {
 		return fmt.Errorf("failed to redirect player with account %d, world server failed to prepare", s.accountID)
 	}
+
+	// The source core has already admitted the world port, but the character
+	// service may still contain the previous map when the destination core logs
+	// the character in. Persist the exact SMSG_NEW_WORLD destination before the
+	// new CMSG_PLAYER_LOGIN so cross-core instance entries do not bounce back to
+	// the outdoor map and trigger a second layer selection.
+	if destination := s.pendingWorldPort; destination != nil && destination.mapID == mapID {
+		if _, err := s.charServiceClient.SavePlayerPosition(ctx, &pb.SavePlayerPositionRequest{
+			Api:      root.SupportedCharServiceVer,
+			RealmID:  root.RealmID,
+			CharGUID: s.character.GUID,
+			MapID:    destination.mapID,
+			X:        destination.x,
+			Y:        destination.y,
+			Z:        destination.z,
+			O:        destination.o,
+		}); err != nil {
+			return fmt.Errorf("save world-port destination before redirect: %w", err)
+		}
+	}
+	s.pendingWorldPort = nil
 
 	s.worldSocket.Close()
 	s.worldSocket = nil
