@@ -279,6 +279,10 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		if err != nil {
 			return err
 		}
+		if stats.ConfiguredLayers == 0 {
+			s.SendSysMessage("This instance does not use layers.")
+			return nil
+		}
 		s.SendSysMessage(fmt.Sprintf("Map %d has %d configured layers; you are on layer %d.", s.character.Map, stats.ConfiguredLayers, s.currentLayerID))
 		for _, layer := range stats.Layers {
 			marker := ""

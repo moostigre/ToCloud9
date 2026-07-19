@@ -15,9 +15,10 @@ const (
 )
 
 type PortalSelection struct {
-	Status           PortalSelectionStatus
-	DestinationMapID uint32
-	Server           repo.GameServer
+	Status            PortalSelectionStatus
+	DestinationMapID  uint32
+	Server            repo.GameServer
+	InstancePlacement bool
 }
 
 type Portal interface {
@@ -25,13 +26,14 @@ type Portal interface {
 }
 
 type portalService struct {
-	servers GameServer
-	layers  Layer
-	store   repo.PortalStore
+	servers   GameServer
+	layers    Layer
+	instances InstancePool
+	store     repo.PortalStore
 }
 
-func NewPortal(servers GameServer, layers Layer, store repo.PortalStore) Portal {
-	return &portalService{servers: servers, layers: layers, store: store}
+func NewPortal(servers GameServer, layers Layer, instances InstancePool, store repo.PortalStore) Portal {
+	return &portalService{servers: servers, layers: layers, instances: instances, store: store}
 }
 
 func (p *portalService) Select(ctx context.Context, realmID uint32, characterGUID uint64, groupID, triggerID uint32) (PortalSelection, error) {
@@ -41,6 +43,9 @@ func (p *portalService) Select(ctx context.Context, realmID uint32, characterGUI
 	}
 	if !found {
 		return PortalSelection{Status: PortalSelectionTriggerNotFound}, nil
+	}
+	if p.instances.IsInstanceMap(destinationMapID) {
+		return p.instances.Select(ctx, realmID, characterGUID, groupID, destinationMapID)
 	}
 
 	servers, err := p.servers.AvailableForMapAndRealm(ctx, destinationMapID, realmID, false)

@@ -35,6 +35,15 @@ func (s *GameSession) HandleAreaTrigger(ctx context.Context, p *packet.Packet) e
 	if selection.Status != pbServ.SelectGameServerForAreaTriggerResponse_OK || selection.GameServer == nil {
 		return fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, selection.DestinationMapID)
 	}
+	// Only instance entries need pre-routing. An instance exit must first be
+	// processed by the core that owns the live instance; otherwise logging the
+	// character into an outdoor core while its saved map is still the dungeon
+	// briefly loads a second copy of that instance. The normal world-port path
+	// performs outdoor layer placement after AzerothCore completes the exit.
+	if !selection.InstancePlacement {
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
 
 	target := selection.GameServer
 	if target.ID == s.currentGameServerID || target.Address == s.worldSocket.Address() {
@@ -61,6 +70,10 @@ func (s *GameSession) HandleAreaTrigger(ctx context.Context, p *packet.Packet) e
 
 	s.gameServerGRPCClient = targetClient
 	s.currentGameServerID = target.ID
-	s.currentLayerID = target.LayerID
+	if selection.InstancePlacement {
+		s.currentLayerID = 0
+	} else {
+		s.currentLayerID = target.LayerID
+	}
 	return nil
 }

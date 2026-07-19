@@ -35,6 +35,12 @@ func (s *serversRegistryDebugLoggerMiddleware) SelectGameServerForPlayer(ctx con
 func (s *serversRegistryDebugLoggerMiddleware) SelectGameServerForAreaTrigger(ctx context.Context, request *pb.SelectGameServerForAreaTriggerRequest) (*pb.SelectGameServerForAreaTriggerResponse, error) {
 	return s.realService.SelectGameServerForAreaTrigger(ctx, request)
 }
+func (s *serversRegistryDebugLoggerMiddleware) GetInstanceResetTargets(ctx context.Context, request *pb.GetInstanceResetTargetsRequest) (*pb.GetInstanceResetTargetsResponse, error) {
+	return s.realService.GetInstanceResetTargets(ctx, request)
+}
+func (s *serversRegistryDebugLoggerMiddleware) ReassignInstanceAfterReset(ctx context.Context, request *pb.ReassignInstanceAfterResetRequest) (*pb.ReassignInstanceAfterResetResponse, error) {
+	return s.realService.ReassignInstanceAfterReset(ctx, request)
+}
 func (s *serversRegistryDebugLoggerMiddleware) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
 	return s.realService.BindGroupToGameServer(ctx, request)
 }

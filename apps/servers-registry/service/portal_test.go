@@ -16,6 +16,9 @@ type portalStoreStub struct {
 	placements   map[string]string
 }
 
+func (s *portalStoreStub) InstanceMaps(_ context.Context) ([]uint32, error)        { return nil, nil }
+func (s *portalStoreStub) ReplaceInstanceMaps(_ context.Context, _ []uint32) error { return nil }
+
 func newPortalStoreStub() *portalStoreStub {
 	return &portalStoreStub{destinations: map[uint32]uint32{}, placements: map[string]string{}}
 }
@@ -54,6 +57,12 @@ func (s *portalStoreStub) ReplacePlacement(_ context.Context, realm uint32, owne
 	}
 	return s.placements[key], nil
 }
+func (s *portalStoreStub) SetPlacement(_ context.Context, realm uint32, ownerType string, ownerID uint64, mapID uint32, server string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.placements[portalPlacementTestKey(realm, ownerType, ownerID, mapID)] = server
+	return nil
+}
 func portalPlacementTestKey(realm uint32, ownerType string, ownerID uint64, mapID uint32) string {
 	return fmt.Sprintf("%d:%s:%d:%d", realm, ownerType, ownerID, mapID)
 }
@@ -67,7 +76,8 @@ func TestPortalSelectionIsSharedAcrossRegistryReplicas(t *testing.T) {
 		{ID: "instance-b", ActiveConnections: 1},
 	}}
 	layers := NewLayer(servers, layerStore)
-	replicaA, replicaB := NewPortal(servers, layers, portalStore), NewPortal(servers, layers, portalStore)
+	instances := NewInstancePool(servers, portalStore, []uint32{389})
+	replicaA, replicaB := NewPortal(servers, layers, instances, portalStore), NewPortal(servers, layers, instances, portalStore)
 
 	var first, second PortalSelection
 	var wg sync.WaitGroup
@@ -89,7 +99,8 @@ func TestPortalSelectionKeepsSoloCharacterOnOwningCore(t *testing.T) {
 		{ID: "instance-a", ActiveConnections: 0},
 		{ID: "instance-b", ActiveConnections: 2},
 	}}
-	portal := NewPortal(servers, NewLayer(servers, layerStore), portalStore)
+	instances := NewInstancePool(servers, portalStore, []uint32{389})
+	portal := NewPortal(servers, NewLayer(servers, layerStore), instances, portalStore)
 
 	first, err := portal.Select(context.Background(), 1, 10, 0, 2230)
 	require.NoError(t, err)
@@ -102,10 +113,65 @@ func TestPortalSelectionKeepsSoloCharacterOnOwningCore(t *testing.T) {
 	require.Equal(t, first.Server.ID, second.Server.ID)
 }
 
+func TestInstanceGroupSelectionAlsoPreservesCharacterAffinity(t *testing.T) {
+	store := newPortalStoreStub()
+	servers := &layerServersStub{servers: []repo.GameServer{{ID: "instance-a"}, {ID: "instance-b", ActiveConnections: 2}}}
+	pool := NewInstancePool(servers, store, []uint32{389})
+
+	grouped, err := pool.Select(context.Background(), 1, 10, 77, 389)
+	require.NoError(t, err)
+	solo, err := pool.Select(context.Background(), 1, 10, 0, 389)
+	require.NoError(t, err)
+
+	require.Equal(t, grouped.Server.ID, solo.Server.ID)
+	require.Equal(t, grouped.Server.ID, store.placements[portalPlacementTestKey(1, "character", 10, 389)])
+}
+
+func TestNewInstanceGroupInheritsExistingCharacterOwner(t *testing.T) {
+	store := newPortalStoreStub()
+	store.placements[portalPlacementTestKey(1, "character", 10, 389)] = "instance-b"
+	servers := &layerServersStub{servers: []repo.GameServer{{ID: "instance-a"}, {ID: "instance-b", ActiveConnections: 9}}}
+	pool := NewInstancePool(servers, store, []uint32{389})
+
+	selection, err := pool.Select(context.Background(), 1, 10, 77, 389)
+	require.NoError(t, err)
+
+	require.Equal(t, "instance-b", selection.Server.ID)
+	require.Equal(t, "instance-b", store.placements[portalPlacementTestKey(1, "group", 77, 389)])
+}
+
+func TestInstanceResetReassignsPlacementAwayFromPreviousCore(t *testing.T) {
+	store := newPortalStoreStub()
+	store.placements[portalPlacementTestKey(1, "group", 77, 389)] = "instance-a"
+	store.placements[portalPlacementTestKey(1, "character", 10, 389)] = "instance-a"
+	servers := &layerServersStub{servers: []repo.GameServer{
+		{ID: "instance-a", ActiveConnections: 0},
+		{ID: "instance-b", ActiveConnections: 4},
+	}}
+	pool := NewInstancePool(servers, store, []uint32{389})
+
+	require.NoError(t, pool.ReassignAfterReset(context.Background(), 1, 10, 77, 389))
+	require.Equal(t, "instance-b", store.placements[portalPlacementTestKey(1, "group", 77, 389)])
+	require.Equal(t, "instance-b", store.placements[portalPlacementTestKey(1, "character", 10, 389)])
+}
+
+func TestInstanceResetTargetsResolveSharedRedisOwner(t *testing.T) {
+	store := newPortalStoreStub()
+	store.placements[portalPlacementTestKey(1, "character", 10, 389)] = "instance-b"
+	servers := &layerServersStub{servers: []repo.GameServer{{ID: "instance-a"}, {ID: "instance-b", Address: "b:9601"}}}
+	pool := NewInstancePool(servers, store, []uint32{389})
+
+	targets, err := pool.ResetTargets(context.Background(), 1, 10, 0)
+	require.NoError(t, err)
+	require.Len(t, targets, 1)
+	require.Equal(t, uint32(389), targets[0].MapID)
+	require.Equal(t, "instance-b", targets[0].Server.ID)
+}
+
 func TestPortalSelectionForUnknownTriggerDoesNotChooseServer(t *testing.T) {
 	store := newPortalStoreStub()
 	servers := &layerServersStub{}
-	selection, err := NewPortal(servers, NewLayer(servers, newLayerStoreStub()), store).
+	selection, err := NewPortal(servers, NewLayer(servers, newLayerStoreStub()), NewInstancePool(servers, store, []uint32{389}), store).
 		Select(context.Background(), 1, 10, 0, 999)
 	require.NoError(t, err)
 	require.Equal(t, PortalSelectionTriggerNotFound, selection.Status)

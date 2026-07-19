@@ -75,9 +75,10 @@ type GameSession struct {
 	// fed by group members updated events. Used to answer party member stats requests.
 	groupMemberStats map[uint64]events.GroupMemberStatsUpdate
 
-	teleportingToNewMap *uint32
-	pendingWorldPort    *worldPortDestination
-	pendingAreaTrigger  *packet.Packet
+	teleportingToNewMap  *uint32
+	pendingWorldPort     *worldPortDestination
+	pendingAreaTrigger   *packet.Packet
+	pendingInstanceReset *instanceResetHandoff
 
 	// worldEntryPending is true between the login (or redirect) request and
 	// the first SMsgTimeSyncReq from the world server. During that window the
@@ -465,7 +466,11 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, selected.Address, preLoginHook)
 	if err == nil {
 		s.currentGameServerID = selected.ID
-		s.currentLayerID = selected.LayerID
+		if selection.InstancePlacement {
+			s.currentLayerID = 0
+		} else {
+			s.currentLayerID = selected.LayerID
+		}
 	}
 	return r.Character, socket, err
 }
@@ -473,7 +478,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 func (s *GameSession) selectGameServerForMap(ctx context.Context, characterGUID uint64, mapID uint32) (*pbServ.SelectGameServerForPlayerResponse, error) {
 	groupID := s.groupIDForPlayer(ctx, characterGUID)
 	return s.serversRegistryClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
-		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapID, GroupID: groupID,
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapID, GroupID: groupID, CharacterGUID: characterGUID,
 	})
 }
 

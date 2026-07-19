@@ -88,6 +88,9 @@ func (s *layerServersStub) MapsLoadedForServer(context.Context, string, []uint32
 func (s *layerServersStub) ConfigureLayers(context.Context, uint32, map[uint32]uint32) error {
 	return nil
 }
+func (s *layerServersStub) ConfigureInstancePool(context.Context, uint32, []uint32, uint32) error {
+	return nil
+}
 
 func TestRegistryReplicasShareAtomicGroupBinding(t *testing.T) {
 	store := newLayerStoreStub()

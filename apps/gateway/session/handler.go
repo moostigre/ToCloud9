@@ -30,6 +30,7 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgGuildQuery:               NewHandler("CMsgGuildQuery", (*GameSession).HandleGuildQuery),
 	packet.CMsgWho:                      NewHandler("CMsgWho", (*GameSession).HandleWho),
 	packet.CMsgAreaTrigger:              NewHandler("CMsgAreaTrigger", (*GameSession).HandleAreaTrigger),
+	packet.CMsgResetInstances:           NewHandler("CMsgResetInstances", (*GameSession).HandleResetInstances),
 
 	// Friends
 	packet.CMsgContactList:     NewHandler("CMsgContactList", (*GameSession).HandleContactList),
@@ -94,9 +95,11 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 
 	packet.TC9SMsgReadyForRedirect: NewHandler("TC9SMsgReadyForRedirect", (*GameSession).HandleReadyForRedirectRequest),
 
-	packet.SMsgNameQueryResponse: NewHandler("SMsgNameQueryResponse", (*GameSession).InterceptSMsgNameQueryResponse),
-	packet.CMsgNameQuery:         NewHandler("CMsgNameQuery", (*GameSession).HandleNameQuery),
-	packet.SMsgTimeSyncReq:       NewHandler("SMsgTimeSyncReq", (*GameSession).InterceptSMsgTimeSyncReq),
+	packet.SMsgNameQueryResponse:   NewHandler("SMsgNameQueryResponse", (*GameSession).InterceptSMsgNameQueryResponse),
+	packet.CMsgNameQuery:           NewHandler("CMsgNameQuery", (*GameSession).HandleNameQuery),
+	packet.SMsgTimeSyncReq:         NewHandler("SMsgTimeSyncReq", (*GameSession).InterceptSMsgTimeSyncReq),
+	packet.SMsgInstanceReset:       NewHandler("SMsgInstanceReset", (*GameSession).InterceptInstanceReset),
+	packet.SMsgInstanceResetFailed: NewHandler("SMsgInstanceResetFailed", (*GameSession).InterceptInstanceResetFailed),
 
 	// Groups
 	packet.CMsgGroupInvite:             NewHandler("CMsgGroupInvite", (*GameSession).HandleGroupInvite),

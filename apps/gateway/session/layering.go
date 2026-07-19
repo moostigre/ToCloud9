@@ -15,7 +15,7 @@ func (s *GameSession) selectLayerGameServer(ctx context.Context, groupID, forced
 	}
 	return s.serversRegistryClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
 		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
-		GroupID: groupID, ForcedLayerID: forcedLayerID,
+		GroupID: groupID, ForcedLayerID: forcedLayerID, CharacterGUID: s.character.GUID,
 	})
 }
 
@@ -28,12 +28,21 @@ func (s *GameSession) applyGroupLayer(ctx context.Context, groupID uint32) error
 		return nil
 	}
 	if selection.GameServer.ID == s.currentGameServerID {
-		s.currentLayerID = selection.LayerID
+		if selection.InstancePlacement {
+			s.currentLayerID = 0
+		} else {
+			s.currentLayerID = selection.LayerID
+		}
 		return nil
 	}
-	s.SendSysMessage(fmt.Sprintf("Switching to layer %d.", selection.LayerID))
+	if !selection.InstancePlacement {
+		s.SendSysMessage(fmt.Sprintf("Switching to layer %d.", selection.LayerID))
+	}
 	if err := s.redirectToSelectedLayer(ctx, selection.GameServer); err != nil {
 		return err
+	}
+	if selection.InstancePlacement {
+		s.currentLayerID = 0
 	}
 	return nil
 }

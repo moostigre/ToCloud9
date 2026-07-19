@@ -23,6 +23,24 @@ type GameServer interface {
 	ListAll(ctx context.Context) ([]repo.GameServer, error)
 	MapsLoadedForServer(ctx context.Context, serverID string, maps []uint32) (*repo.GameServer, error)
 	ConfigureLayers(ctx context.Context, realmID uint32, config map[uint32]uint32) error
+	ConfigureInstancePool(ctx context.Context, realmID uint32, maps []uint32, replicas uint32) error
+}
+
+func (g *gameServerImpl) ConfigureInstancePool(ctx context.Context, realmID uint32, maps []uint32, replicas uint32) error {
+	if replicas == 0 {
+		return fmt.Errorf("instance pool replicas must be greater than zero")
+	}
+	g.instanceMaps = append([]uint32(nil), maps...)
+	g.instanceReplicas = replicas
+	config := map[uint32]uint32{}
+	if g.layers != nil {
+		var err error
+		config, err = g.layers.Configuration(ctx, realmID)
+		if err != nil {
+			return err
+		}
+	}
+	return g.ConfigureLayers(ctx, realmID, config)
 }
 
 func (g *gameServerImpl) ConfigureLayers(ctx context.Context, realmID uint32, config map[uint32]uint32) error {
@@ -46,6 +64,7 @@ func (g *gameServerImpl) ConfigureLayers(ctx context.Context, realmID uint32, co
 		before[servers[i].ID] = append([]uint32(nil), servers[i].AssignedMapsToHandle...)
 	}
 	applyLayerAssignments(servers, config)
+	applyInstancePoolAssignments(servers, g.instanceMaps, g.instanceReplicas)
 
 	eventServers := make([]events.GameServer, 0, len(servers))
 	for i := range servers {
@@ -70,6 +89,46 @@ func (g *gameServerImpl) ConfigureLayers(ctx context.Context, realmID uint32, co
 		return nil
 	}
 	return g.eProducer.GSMapsReassigned(&events.ServerRegistryEventGSMapsReassignedPayload{Servers: eventServers})
+}
+
+func applyInstancePoolAssignments(servers []repo.GameServer, maps []uint32, replicas uint32) {
+	for _, mapID := range maps {
+		for i := range servers {
+			servers[i].AssignedMapsToHandle = removeMap(servers[i].AssignedMapsToHandle, mapID)
+		}
+		selected := make(map[int]struct{}, replicas)
+		for copyIndex := uint32(0); copyIndex < replicas; copyIndex++ {
+			candidate := -1
+			for i := range servers {
+				if _, used := selected[i]; used || !mapAvailable(servers[i], mapID) {
+					continue
+				}
+				if candidate == -1 || instancePoolCandidateLess(servers[i], servers[candidate]) {
+					candidate = i
+				}
+			}
+			if candidate == -1 {
+				break
+			}
+			selected[candidate] = struct{}{}
+			servers[candidate].AssignedMapsToHandle = append(servers[candidate].AssignedMapsToHandle, mapID)
+			sort.Slice(servers[candidate].AssignedMapsToHandle, func(i, j int) bool {
+				return servers[candidate].AssignedMapsToHandle[i] < servers[candidate].AssignedMapsToHandle[j]
+			})
+		}
+	}
+}
+
+func instancePoolCandidateLess(a, b repo.GameServer) bool {
+	// A core with an explicit AvailableMaps list is intended for a specialized
+	// workload and is preferred over an all-map outdoor core.
+	if a.IsAllMapsAvailable() != b.IsAllMapsAvailable() {
+		return !a.IsAllMapsAvailable()
+	}
+	if len(a.AssignedMapsToHandle) != len(b.AssignedMapsToHandle) {
+		return len(a.AssignedMapsToHandle) < len(b.AssignedMapsToHandle)
+	}
+	return a.ID < b.ID
 }
 
 func applyLayerAssignments(servers []repo.GameServer, config map[uint32]uint32) {
@@ -159,12 +218,14 @@ func pendingAssignments(existing, oldMaps, newMaps []uint32) []uint32 {
 }
 
 type gameServerImpl struct {
-	r           repo.GameServerRepo
-	checker     healthandmetrics.HealthChecker
-	metrics     healthandmetrics.MetricsConsumer
-	mapBalancer mapbalancing.MapDistributor
-	eProducer   events.ServerRegistryProducer
-	layers      repo.LayerStore
+	r                repo.GameServerRepo
+	checker          healthandmetrics.HealthChecker
+	metrics          healthandmetrics.MetricsConsumer
+	mapBalancer      mapbalancing.MapDistributor
+	eProducer        events.ServerRegistryProducer
+	layers           repo.LayerStore
+	instanceMaps     []uint32
+	instanceReplicas uint32
 }
 
 func NewGameServer(

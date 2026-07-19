@@ -27,6 +27,8 @@ const (
 	ServersRegistryService_GameServerMapsLoaded_FullMethodName               = "/v1.ServersRegistryService/GameServerMapsLoaded"
 	ServersRegistryService_SelectGameServerForPlayer_FullMethodName          = "/v1.ServersRegistryService/SelectGameServerForPlayer"
 	ServersRegistryService_SelectGameServerForAreaTrigger_FullMethodName     = "/v1.ServersRegistryService/SelectGameServerForAreaTrigger"
+	ServersRegistryService_ReassignInstanceAfterReset_FullMethodName         = "/v1.ServersRegistryService/ReassignInstanceAfterReset"
+	ServersRegistryService_GetInstanceResetTargets_FullMethodName            = "/v1.ServersRegistryService/GetInstanceResetTargets"
 	ServersRegistryService_BindGroupToGameServer_FullMethodName              = "/v1.ServersRegistryService/BindGroupToGameServer"
 	ServersRegistryService_GetMapLayerConfiguration_FullMethodName           = "/v1.ServersRegistryService/GetMapLayerConfiguration"
 	ServersRegistryService_UpdateMapLayerConfiguration_FullMethodName        = "/v1.ServersRegistryService/UpdateMapLayerConfiguration"
@@ -48,6 +50,8 @@ type ServersRegistryServiceClient interface {
 	GameServerMapsLoaded(ctx context.Context, in *GameServerMapsLoadedRequest, opts ...grpc.CallOption) (*GameServerMapsLoadedResponse, error)
 	SelectGameServerForPlayer(ctx context.Context, in *SelectGameServerForPlayerRequest, opts ...grpc.CallOption) (*SelectGameServerForPlayerResponse, error)
 	SelectGameServerForAreaTrigger(ctx context.Context, in *SelectGameServerForAreaTriggerRequest, opts ...grpc.CallOption) (*SelectGameServerForAreaTriggerResponse, error)
+	ReassignInstanceAfterReset(ctx context.Context, in *ReassignInstanceAfterResetRequest, opts ...grpc.CallOption) (*ReassignInstanceAfterResetResponse, error)
+	GetInstanceResetTargets(ctx context.Context, in *GetInstanceResetTargetsRequest, opts ...grpc.CallOption) (*GetInstanceResetTargetsResponse, error)
 	BindGroupToGameServer(ctx context.Context, in *BindGroupToGameServerRequest, opts ...grpc.CallOption) (*BindGroupToGameServerResponse, error)
 	GetMapLayerConfiguration(ctx context.Context, in *GetMapLayerConfigurationRequest, opts ...grpc.CallOption) (*GetMapLayerConfigurationResponse, error)
 	UpdateMapLayerConfiguration(ctx context.Context, in *UpdateMapLayerConfigurationRequest, opts ...grpc.CallOption) (*UpdateMapLayerConfigurationResponse, error)
@@ -137,6 +141,24 @@ func (c *serversRegistryServiceClient) SelectGameServerForAreaTrigger(ctx contex
 	return out, nil
 }
 
+func (c *serversRegistryServiceClient) ReassignInstanceAfterReset(ctx context.Context, in *ReassignInstanceAfterResetRequest, opts ...grpc.CallOption) (*ReassignInstanceAfterResetResponse, error) {
+	out := new(ReassignInstanceAfterResetResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_ReassignInstanceAfterReset_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serversRegistryServiceClient) GetInstanceResetTargets(ctx context.Context, in *GetInstanceResetTargetsRequest, opts ...grpc.CallOption) (*GetInstanceResetTargetsResponse, error) {
+	out := new(GetInstanceResetTargetsResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_GetInstanceResetTargets_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serversRegistryServiceClient) BindGroupToGameServer(ctx context.Context, in *BindGroupToGameServerRequest, opts ...grpc.CallOption) (*BindGroupToGameServerResponse, error) {
 	out := new(BindGroupToGameServerResponse)
 	err := c.cc.Invoke(ctx, ServersRegistryService_BindGroupToGameServer_FullMethodName, in, out, opts...)
@@ -212,6 +234,8 @@ type ServersRegistryServiceServer interface {
 	GameServerMapsLoaded(context.Context, *GameServerMapsLoadedRequest) (*GameServerMapsLoadedResponse, error)
 	SelectGameServerForPlayer(context.Context, *SelectGameServerForPlayerRequest) (*SelectGameServerForPlayerResponse, error)
 	SelectGameServerForAreaTrigger(context.Context, *SelectGameServerForAreaTriggerRequest) (*SelectGameServerForAreaTriggerResponse, error)
+	ReassignInstanceAfterReset(context.Context, *ReassignInstanceAfterResetRequest) (*ReassignInstanceAfterResetResponse, error)
+	GetInstanceResetTargets(context.Context, *GetInstanceResetTargetsRequest) (*GetInstanceResetTargetsResponse, error)
 	BindGroupToGameServer(context.Context, *BindGroupToGameServerRequest) (*BindGroupToGameServerResponse, error)
 	GetMapLayerConfiguration(context.Context, *GetMapLayerConfigurationRequest) (*GetMapLayerConfigurationResponse, error)
 	UpdateMapLayerConfiguration(context.Context, *UpdateMapLayerConfigurationRequest) (*UpdateMapLayerConfigurationResponse, error)
@@ -249,6 +273,12 @@ func (UnimplementedServersRegistryServiceServer) SelectGameServerForPlayer(conte
 }
 func (UnimplementedServersRegistryServiceServer) SelectGameServerForAreaTrigger(context.Context, *SelectGameServerForAreaTriggerRequest) (*SelectGameServerForAreaTriggerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SelectGameServerForAreaTrigger not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) ReassignInstanceAfterReset(context.Context, *ReassignInstanceAfterResetRequest) (*ReassignInstanceAfterResetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReassignInstanceAfterReset not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) GetInstanceResetTargets(context.Context, *GetInstanceResetTargetsRequest) (*GetInstanceResetTargetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstanceResetTargets not implemented")
 }
 func (UnimplementedServersRegistryServiceServer) BindGroupToGameServer(context.Context, *BindGroupToGameServerRequest) (*BindGroupToGameServerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BindGroupToGameServer not implemented")
@@ -429,6 +459,42 @@ func _ServersRegistryService_SelectGameServerForAreaTrigger_Handler(srv interfac
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ServersRegistryService_ReassignInstanceAfterReset_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReassignInstanceAfterResetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).ReassignInstanceAfterReset(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_ReassignInstanceAfterReset_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).ReassignInstanceAfterReset(ctx, req.(*ReassignInstanceAfterResetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServersRegistryService_GetInstanceResetTargets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstanceResetTargetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).GetInstanceResetTargets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_GetInstanceResetTargets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).GetInstanceResetTargets(ctx, req.(*GetInstanceResetTargetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ServersRegistryService_BindGroupToGameServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BindGroupToGameServerRequest)
 	if err := dec(in); err != nil {
@@ -593,6 +659,14 @@ var ServersRegistryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SelectGameServerForAreaTrigger",
 			Handler:    _ServersRegistryService_SelectGameServerForAreaTrigger_Handler,
+		},
+		{
+			MethodName: "ReassignInstanceAfterReset",
+			Handler:    _ServersRegistryService_ReassignInstanceAfterReset_Handler,
+		},
+		{
+			MethodName: "GetInstanceResetTargets",
+			Handler:    _ServersRegistryService_GetInstanceResetTargets_Handler,
 		},
 		{
 			MethodName: "BindGroupToGameServer",

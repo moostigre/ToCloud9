@@ -33,6 +33,7 @@ type Config struct {
 	WorldDBConnection               string `yaml:"worldDB" env:"WORLD_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/acore_world"`
 	AreaTriggerCatalogVersion       string `yaml:"areaTriggerCatalogVersion" env:"AREA_TRIGGER_CATALOG_VERSION" env-default:"default"`
 	AreaTriggerCatalogImportEnabled bool   `yaml:"areaTriggerCatalogImportEnabled" env:"AREA_TRIGGER_CATALOG_IMPORT_ENABLED" env-default:"true"`
+	InstancePoolReplicas            uint32 `yaml:"instancePoolReplicas" env:"INSTANCE_POOL_REPLICAS" env-default:"1"`
 
 	Layering LayeringConfig `yaml:"layering"`
 }

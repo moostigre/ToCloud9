@@ -165,6 +165,43 @@ func (_m *ServersRegistryServiceClient) GatewaysForRealms(ctx context.Context, i
 	return r0, r1
 }
 
+// GetInstanceResetTargets provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) GetInstanceResetTargets(ctx context.Context, in *pb.GetInstanceResetTargetsRequest, opts ...grpc.CallOption) (*pb.GetInstanceResetTargetsResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetInstanceResetTargets")
+	}
+
+	var r0 *pb.GetInstanceResetTargetsResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetInstanceResetTargetsRequest, ...grpc.CallOption) (*pb.GetInstanceResetTargetsResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetInstanceResetTargetsRequest, ...grpc.CallOption) *pb.GetInstanceResetTargetsResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.GetInstanceResetTargetsResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.GetInstanceResetTargetsRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetLayerStats provides a mock function with given fields: ctx, in, opts
 func (_m *ServersRegistryServiceClient) GetLayerStats(ctx context.Context, in *pb.GetLayerStatsRequest, opts ...grpc.CallOption) (*pb.GetLayerStatsResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -379,6 +416,43 @@ func (_m *ServersRegistryServiceClient) RandomGameServerForRealm(ctx context.Con
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.RandomGameServerForRealmRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ReassignInstanceAfterReset provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) ReassignInstanceAfterReset(ctx context.Context, in *pb.ReassignInstanceAfterResetRequest, opts ...grpc.CallOption) (*pb.ReassignInstanceAfterResetResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReassignInstanceAfterReset")
+	}
+
+	var r0 *pb.ReassignInstanceAfterResetResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.ReassignInstanceAfterResetRequest, ...grpc.CallOption) (*pb.ReassignInstanceAfterResetResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.ReassignInstanceAfterResetRequest, ...grpc.CallOption) *pb.ReassignInstanceAfterResetResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.ReassignInstanceAfterResetResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.ReassignInstanceAfterResetRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)

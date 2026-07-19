@@ -309,7 +309,11 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 				session.worldSocket = socket
 				session.gameServerGRPCClient = client
 				session.currentGameServerID = desiredServer.ID
-				session.currentLayerID = desiredServer.LayerID
+				if selection.InstancePlacement {
+					session.currentLayerID = 0
+				} else {
+					session.currentLayerID = desiredServer.LayerID
+				}
 			}
 
 			if session.showGameserverConnChangeToClient {
@@ -377,6 +381,46 @@ func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Pa
 	if s.pendingAreaTrigger != nil && s.worldSocket != nil {
 		s.worldSocket.SendPacket(s.pendingAreaTrigger)
 		s.pendingAreaTrigger = nil
+	}
+	if s.pendingInstanceReset != nil && !s.pendingInstanceReset.requestSent && s.worldSocket != nil {
+		s.worldSocket.SendPacket(s.pendingInstanceReset.request)
+		s.pendingInstanceReset.requestSent = true
+	}
+	return nil
+}
+
+func (s *GameSession) InterceptInstanceResetFailed(ctx context.Context, p *packet.Packet) error {
+	reader := p.Reader()
+	_ = reader.Uint32() // failure reason
+	mapID := reader.Uint32()
+	s.gameSocket.SendPacket(p)
+	if handoff := s.pendingInstanceReset; handoff != nil && handoff.mapID == mapID {
+		s.pendingInstanceReset = nil
+		return s.returnFromInstanceReset(ctx, handoff.returnServer)
+	}
+	return nil
+}
+
+// InterceptInstanceReset updates shared placement only after AzerothCore has
+// confirmed that the native instance reset succeeded. The former owner may
+// retain the now-empty DungeonMap in memory, so the next entry is assigned to
+// another instance core instead of reviving that stale copy.
+func (s *GameSession) InterceptInstanceReset(ctx context.Context, p *packet.Packet) error {
+	mapID := p.Reader().Uint32()
+	_, err := s.serversRegistryClient.ReassignInstanceAfterReset(ctx, &pbServ.ReassignInstanceAfterResetRequest{
+		Api:           root.SupportedServerRegistryVer,
+		RealmID:       root.RealmID,
+		CharacterGUID: s.character.GUID,
+		GroupID:       s.groupIDForPlayer(ctx, s.character.GUID),
+		MapID:         mapID,
+	})
+	if err != nil {
+		s.logger.Error().Err(err).Uint32("mapID", mapID).Msg("failed to reassign instance placement after reset")
+	}
+	s.gameSocket.SendPacket(p)
+	if handoff := s.pendingInstanceReset; handoff != nil && handoff.mapID == mapID {
+		s.pendingInstanceReset = nil
+		return s.returnFromInstanceReset(ctx, handoff.returnServer)
 	}
 	return nil
 }

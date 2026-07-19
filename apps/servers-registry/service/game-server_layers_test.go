@@ -29,3 +29,17 @@ func TestApplyLayerAssignmentsUsesOneGameServerPerMapLayer(t *testing.T) {
 	require.Equal(t, []string{"layer-2"}, hosts[2])
 	require.Empty(t, hosts[0])
 }
+
+func TestApplyInstancePoolAssignmentsReplicatesMapsWithoutLayerSemantics(t *testing.T) {
+	servers := []repo.GameServer{
+		{ID: "outdoor", LayerID: 1, AssignedMapsToHandle: []uint32{1, 389}},
+		{ID: "instance-a", AvailableMaps: []uint32{389}},
+		{ID: "instance-b", AvailableMaps: []uint32{389}},
+	}
+
+	applyInstancePoolAssignments(servers, []uint32{389}, 2)
+
+	require.NotContains(t, servers[0].AssignedMapsToHandle, uint32(389))
+	require.Contains(t, servers[1].AssignedMapsToHandle, uint32(389))
+	require.Contains(t, servers[2].AssignedMapsToHandle, uint32(389))
+}

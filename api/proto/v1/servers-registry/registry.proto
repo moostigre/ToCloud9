@@ -12,6 +12,8 @@ service ServersRegistryService {
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
   rpc SelectGameServerForPlayer(SelectGameServerForPlayerRequest) returns (SelectGameServerForPlayerResponse);
   rpc SelectGameServerForAreaTrigger(SelectGameServerForAreaTriggerRequest) returns (SelectGameServerForAreaTriggerResponse);
+  rpc ReassignInstanceAfterReset(ReassignInstanceAfterResetRequest) returns (ReassignInstanceAfterResetResponse);
+  rpc GetInstanceResetTargets(GetInstanceResetTargetsRequest) returns (GetInstanceResetTargetsResponse);
   rpc BindGroupToGameServer(BindGroupToGameServerRequest) returns (BindGroupToGameServerResponse);
   rpc GetMapLayerConfiguration(GetMapLayerConfigurationRequest) returns (GetMapLayerConfigurationResponse);
   rpc UpdateMapLayerConfiguration(UpdateMapLayerConfigurationRequest) returns (UpdateMapLayerConfigurationResponse);
@@ -143,6 +145,7 @@ message SelectGameServerForPlayerRequest {
   uint32 mapID = 3;
   uint32 groupID = 4;
   uint32 forcedLayerID = 5;
+  uint64 characterGUID = 6;
 }
 
 message SelectGameServerForPlayerResponse {
@@ -155,6 +158,7 @@ message SelectGameServerForPlayerResponse {
   Status status = 2;
   Server gameServer = 3;
   uint32 layerID = 4;
+  bool instancePlacement = 5;
 }
 
 // SelectGameServerForAreaTrigger resolves an immutable game-data mapping and
@@ -179,6 +183,34 @@ message SelectGameServerForAreaTriggerResponse {
   uint32 destinationMapID = 3;
   Server gameServer = 4;
   uint32 layerID = 5;
+  bool instancePlacement = 6;
+}
+
+// ReassignInstanceAfterReset moves the Redis placement away from the core
+// which may still hold the reset instance in memory. It is called only after
+// AzerothCore confirms a successful reset for the map.
+message ReassignInstanceAfterResetRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 characterGUID = 3;
+  uint32 groupID = 4;
+  uint32 mapID = 5;
+}
+message ReassignInstanceAfterResetResponse { string api = 1; }
+
+message GetInstanceResetTargetsRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 characterGUID = 3;
+  uint32 groupID = 4;
+}
+message InstanceResetTarget {
+  uint32 mapID = 1;
+  Server gameServer = 2;
+}
+message GetInstanceResetTargetsResponse {
+  string api = 1;
+  repeated InstanceResetTarget targets = 2;
 }
 
 message BindGroupToGameServerRequest {

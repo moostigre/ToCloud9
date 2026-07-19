@@ -80,6 +80,7 @@ func main() {
 		log.Fatal().Str("catalogVersion", conf.AreaTriggerCatalogVersion).Msg("invalid area-trigger catalog version")
 	}
 	portalStore := repo.NewPortalRedisStore(rdb, conf.AreaTriggerCatalogVersion)
+	var instanceMaps []uint32
 	if conf.AreaTriggerCatalogImportEnabled {
 		worldDB, dbErr := sql.Open("mysql", conf.WorldDBConnection)
 		if dbErr != nil {
@@ -90,6 +91,9 @@ func main() {
 			log.Fatal().Err(dbErr).Msg("can't connect to world database for area-trigger import")
 		}
 		destinations, importErr := repo.LoadAreaTriggerTeleportDestinations(mainContext, worldDB)
+		if importErr == nil {
+			instanceMaps, importErr = repo.LoadInstanceMaps(mainContext, worldDB)
+		}
 		_ = worldDB.Close()
 		if importErr != nil {
 			log.Fatal().Err(importErr).Msg("can't import area-trigger teleport destinations")
@@ -97,7 +101,14 @@ func main() {
 		if importErr = portalStore.ReplaceDestinations(mainContext, destinations); importErr != nil {
 			log.Fatal().Err(importErr).Msg("can't publish area-trigger teleport destinations to redis")
 		}
-		log.Info().Int("destinations", len(destinations)).Str("catalogVersion", conf.AreaTriggerCatalogVersion).Msg("Imported area-trigger teleport destinations")
+		if importErr = portalStore.ReplaceInstanceMaps(mainContext, instanceMaps); importErr != nil {
+			log.Fatal().Err(importErr).Msg("can't publish instance map catalog to redis")
+		}
+		log.Info().Int("destinations", len(destinations)).Int("instanceMaps", len(instanceMaps)).Str("catalogVersion", conf.AreaTriggerCatalogVersion).Msg("Imported world routing catalog")
+	}
+	instanceMaps, err = portalStore.InstanceMaps(mainContext)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't load instance map catalog")
 	}
 	gameServersService, err := service.NewGameServer(
 		mainContext,
@@ -126,7 +137,8 @@ func main() {
 	}
 
 	layerService := service.NewLayer(gameServersService, layerStore)
-	portalService := service.NewPortal(gameServersService, layerService, portalStore)
+	instancePoolService := service.NewInstancePool(gameServersService, portalStore, instanceMaps)
+	portalService := service.NewPortal(gameServersService, layerService, instancePoolService, portalStore)
 	startupLayers := make(map[uint32]uint32, len(conf.Layering.Maps)+len(conf.Layering.MapSpecs))
 	for _, item := range conf.Layering.Maps {
 		startupLayers[item.MapID] = item.Layers
@@ -150,8 +162,13 @@ func main() {
 			}
 		}
 	}
+	for _, realmID := range supportedRealms {
+		if err := gameServersService.ConfigureInstancePool(mainContext, realmID, instanceMaps, conf.InstancePoolReplicas); err != nil {
+			log.Fatal().Err(err).Uint32("realmID", realmID).Msg("can't configure instance server pool")
+		}
+	}
 
-	registryService := server.NewServersRegistry(gameServersService, gatewayService, layerService, portalService)
+	registryService := server.NewServersRegistry(gameServersService, gatewayService, layerService, instancePoolService, portalService)
 	if conf.LogLevel == zerolog.DebugLevel {
 		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)
 	}
