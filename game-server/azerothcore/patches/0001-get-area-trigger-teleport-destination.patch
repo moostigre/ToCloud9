@@ -1,0 +1,57 @@
+diff --git a/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp b/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp
+index c91475564..c659efa50 100644
+--- a/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp
++++ b/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp
+@@ -20,6 +20,7 @@
+ #include "BattlegroundMgr.h"
+ #include "Item.h"
+ #include "ObjectAccessor.h"
++#include "ObjectMgr.h"
+ #include "Player.h"
+ 
+ GetPlayerItemsByGuidsResponse ToCloud9GrpcHandler::GetPlayerItemsByGuids(uint64 playerGuid, uint64* items, int itemsLen)
+@@ -256,6 +257,20 @@ CanPlayerInteractWithNPCAndFlagsResponse ToCloud9GrpcHandler::CanPlayerInteractW
+     return resp;
+ }
+ 
++GetAreaTriggerTeleportDestinationResponse ToCloud9GrpcHandler::GetAreaTriggerTeleportDestination(uint32 triggerID)
++{
++    GetAreaTriggerTeleportDestinationResponse resp{};
++    resp.errorCode = 0;
++
++    AreaTriggerTeleport const* areaTrigger = sObjectMgr->GetAreaTriggerTeleport(triggerID);
++    if (!areaTrigger)
++        return resp;
++
++    resp.found = true;
++    resp.destinationMapID = areaTrigger->target_mapId;
++    return resp;
++}
++
+ BattlegroundStartResponse ToCloud9GrpcHandler::StartBattleground(BattlegroundStartRequest* req)
+ {
+     PvPDifficultyEntry const* pvpEntry = GetBattlegroundBracketByLevel(req->mapID, req->bracketLvl);
+diff --git a/src/server/game/TC9Sidecar/TC9GrpcHandler.h b/src/server/game/TC9Sidecar/TC9GrpcHandler.h
+index 438ea6550..fa7348eb1 100644
+--- a/src/server/game/TC9Sidecar/TC9GrpcHandler.h
++++ b/src/server/game/TC9Sidecar/TC9GrpcHandler.h
+@@ -39,6 +39,7 @@ public:
+     // Interactions
+     static CanPlayerInteractWithGOAndTypeResponse   CanPlayerInteractWithGOAndType(uint64 player, uint64 go, uint8 goType);
+     static CanPlayerInteractWithNPCAndFlagsResponse CanPlayerInteractWithNPCAndFlags(uint64 player, uint64 npc, uint32 unitFlags);
++    static GetAreaTriggerTeleportDestinationResponse GetAreaTriggerTeleportDestination(uint32 triggerID);
+ 
+     // Battlegrounds
+     static BattlegroundStartResponse StartBattleground(BattlegroundStartRequest* request);
+diff --git a/src/server/game/TC9Sidecar/TC9Sidecar.cpp b/src/server/game/TC9Sidecar/TC9Sidecar.cpp
+index a921576bd..fa8178600 100644
+--- a/src/server/game/TC9Sidecar/TC9Sidecar.cpp
++++ b/src/server/game/TC9Sidecar/TC9Sidecar.cpp
+@@ -105,6 +105,7 @@ void ToCloud9Sidecar::SetupGrpcHandlers()
+ 
+     TC9SetCanPlayerInteractWithGOAndTypeHandler(&ToCloud9GrpcHandler::CanPlayerInteractWithGOAndType);
+     TC9SetCanPlayerInteractWithNPCAndFlagsHandler(&ToCloud9GrpcHandler::CanPlayerInteractWithNPCAndFlags);
++    TC9SetGetAreaTriggerTeleportDestinationHandler(&ToCloud9GrpcHandler::GetAreaTriggerTeleportDestination);
+ 
+     TC9SetBattlegroundStartHandler(&ToCloud9GrpcHandler::StartBattleground);
+     TC9SetBattlegroundAddPlayersHandler(&ToCloud9GrpcHandler::AddPlayersToBattleground);

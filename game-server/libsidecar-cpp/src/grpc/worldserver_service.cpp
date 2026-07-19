@@ -416,6 +416,43 @@ grpc::Status WorldServerServiceImpl::CanPlayerInteractWithGameObject(
     }
 }
 
+grpc::Status WorldServerServiceImpl::GetAreaTriggerTeleportDestination(
+    grpc::ServerContext* context,
+    const v1::GetAreaTriggerTeleportDestinationRequest* request,
+    v1::GetAreaTriggerTeleportDestinationResponse* response) {
+
+    response->set_api(lib_version_);
+    if (!bindings_.get_area_trigger_teleport_destination) {
+        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "No handler registered");
+    }
+
+    auto promise = std::make_shared<std::promise<TC9GetAreaTriggerTeleportDestinationResponse>>();
+    auto future = promise->get_future();
+    read_queue_.Push(MakeHandler([=]() {
+        try {
+            promise->set_value(bindings_.get_area_trigger_teleport_destination(request->triggerid()));
+        } catch (...) {
+            promise->set_exception(std::current_exception());
+        }
+    }));
+
+    if (future.wait_for(timeout_) == std::future_status::timeout) {
+        return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Request timeout");
+    }
+
+    try {
+        auto result = future.get();
+        if (result.errorCode != TC9_ERROR_SUCCESS) {
+            return grpc::Status(grpc::StatusCode::INTERNAL, "Handler returned error");
+        }
+        response->set_found(result.found);
+        response->set_destinationmapid(result.destinationMapID);
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    }
+}
+
 grpc::Status WorldServerServiceImpl::StartBattleground(
     grpc::ServerContext* context,
     const v1::StartBattlegroundRequest* request,

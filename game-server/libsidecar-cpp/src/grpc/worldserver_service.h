@@ -19,6 +19,7 @@ struct CppBindings {
     TC9ModifyMoneyForPlayerHandler modify_money = nullptr;
     TC9CanPlayerInteractWithNPCHandler interact_npc = nullptr;
     TC9CanPlayerInteractWithGOHandler interact_go = nullptr;
+    TC9GetAreaTriggerTeleportDestinationHandler get_area_trigger_teleport_destination = nullptr;
     TC9StartBattlegroundHandler start_bg = nullptr;
     TC9AddPlayersToBattlegroundHandler add_players_bg = nullptr;
     TC9CanPlayerJoinBattlegroundQueueHandler can_join_bg_queue = nullptr;
@@ -72,6 +73,11 @@ public:
         grpc::ServerContext* context,
         const v1::CanPlayerInteractWithGameObjectRequest* request,
         v1::CanPlayerInteractWithGameObjectResponse* response) override;
+
+    grpc::Status GetAreaTriggerTeleportDestination(
+        grpc::ServerContext* context,
+        const v1::GetAreaTriggerTeleportDestinationRequest* request,
+        v1::GetAreaTriggerTeleportDestinationResponse* response) override;
 
     // Battlegrounds
     grpc::Status StartBattleground(

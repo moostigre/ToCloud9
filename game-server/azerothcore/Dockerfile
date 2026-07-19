@@ -54,10 +54,8 @@ RUN cd repo && git init && \
     git fetch --depth 1 origin f3d7356ec652a9fc1d75835e642fd8b760282979  && \
     git checkout FETCH_HEAD
 
-# Preserve a player's temporary dungeon affinity when a TC9 map handoff moves
-# the session between worldservers.
 COPY game-server/azerothcore/patches /patches
-RUN git -C /repo apply /patches/0001-preserve-temporary-instance-affinity.patch
+RUN git -C /repo apply /patches/0001-get-area-trigger-teleport-destination.patch
 
 COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
 COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h

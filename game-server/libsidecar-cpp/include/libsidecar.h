@@ -20,6 +20,7 @@
 #endif
 
 /* Include all API headers */
+#include "area-trigger-api.h"
 #include "battleground-api.h"
 #include "events-group.h"
 #include "events-guild.h"
@@ -92,6 +93,8 @@ TC9_API void TC9SetOnGuildMemberLeftHook(OnGuildMemberLeftHook h);
 TC9_API void TC9SetOnMapsReassignedHook(OnMapsReassignedHook h);
 
 /* Handler registration for gRPC requests */
+TC9_API void TC9SetGetAreaTriggerTeleportDestinationHandler(GetAreaTriggerTeleportDestinationHandler h);
+
 TC9_API void TC9SetBattlegroundStartHandler(BattlegroundStartHandler h);
 TC9_API void TC9SetBattlegroundAddPlayersHandler(BattlegroundAddPlayersHandler h);
 TC9_API void TC9SetCanPlayerJoinBattlegroundQueueHandler(CanPlayerJoinBattlegroundQueueHandler h);
