@@ -106,6 +106,9 @@ servers-registry:
   port: 8999
   redisUrl: *defaultRedisUrl
   natsUrl: *defaultNatsUrl
+  worldDB: *defaultWorldDB
+  areaTriggerCatalogVersion: "default"
+  areaTriggerCatalogImportEnabled: true
   logging: *defaultLogging
   realmsID:
     - 1

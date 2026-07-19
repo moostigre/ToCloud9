@@ -14,10 +14,10 @@ import (
 )
 
 type gameServerRedisRepo struct {
-	rdb *redis.Client
+	rdb redis.UniversalClient
 }
 
-func NewGameServerRedisRepo(rdb *redis.Client) GameServerRepo {
+func NewGameServerRedisRepo(rdb redis.UniversalClient) GameServerRepo {
 	return &gameServerRedisRepo{rdb: rdb}
 }
 

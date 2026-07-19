@@ -19,18 +19,17 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	WorldServerService_GetPlayerItemsByGuids_FullMethodName             = "/v1.WorldServerService/GetPlayerItemsByGuids"
-	WorldServerService_RemoveItemsWithGuidsFromPlayer_FullMethodName    = "/v1.WorldServerService/RemoveItemsWithGuidsFromPlayer"
-	WorldServerService_AddExistingItemToPlayer_FullMethodName           = "/v1.WorldServerService/AddExistingItemToPlayer"
-	WorldServerService_GetMoneyForPlayer_FullMethodName                 = "/v1.WorldServerService/GetMoneyForPlayer"
-	WorldServerService_ModifyMoneyForPlayer_FullMethodName              = "/v1.WorldServerService/ModifyMoneyForPlayer"
-	WorldServerService_CanPlayerInteractWithNPC_FullMethodName          = "/v1.WorldServerService/CanPlayerInteractWithNPC"
-	WorldServerService_CanPlayerInteractWithGameObject_FullMethodName   = "/v1.WorldServerService/CanPlayerInteractWithGameObject"
-	WorldServerService_GetAreaTriggerTeleportDestination_FullMethodName = "/v1.WorldServerService/GetAreaTriggerTeleportDestination"
-	WorldServerService_StartBattleground_FullMethodName                 = "/v1.WorldServerService/StartBattleground"
-	WorldServerService_AddPlayersToBattleground_FullMethodName          = "/v1.WorldServerService/AddPlayersToBattleground"
-	WorldServerService_CanPlayerJoinBattlegroundQueue_FullMethodName    = "/v1.WorldServerService/CanPlayerJoinBattlegroundQueue"
-	WorldServerService_CanPlayerTeleportToBattleground_FullMethodName   = "/v1.WorldServerService/CanPlayerTeleportToBattleground"
+	WorldServerService_GetPlayerItemsByGuids_FullMethodName           = "/v1.WorldServerService/GetPlayerItemsByGuids"
+	WorldServerService_RemoveItemsWithGuidsFromPlayer_FullMethodName  = "/v1.WorldServerService/RemoveItemsWithGuidsFromPlayer"
+	WorldServerService_AddExistingItemToPlayer_FullMethodName         = "/v1.WorldServerService/AddExistingItemToPlayer"
+	WorldServerService_GetMoneyForPlayer_FullMethodName               = "/v1.WorldServerService/GetMoneyForPlayer"
+	WorldServerService_ModifyMoneyForPlayer_FullMethodName            = "/v1.WorldServerService/ModifyMoneyForPlayer"
+	WorldServerService_CanPlayerInteractWithNPC_FullMethodName        = "/v1.WorldServerService/CanPlayerInteractWithNPC"
+	WorldServerService_CanPlayerInteractWithGameObject_FullMethodName = "/v1.WorldServerService/CanPlayerInteractWithGameObject"
+	WorldServerService_StartBattleground_FullMethodName               = "/v1.WorldServerService/StartBattleground"
+	WorldServerService_AddPlayersToBattleground_FullMethodName        = "/v1.WorldServerService/AddPlayersToBattleground"
+	WorldServerService_CanPlayerJoinBattlegroundQueue_FullMethodName  = "/v1.WorldServerService/CanPlayerJoinBattlegroundQueue"
+	WorldServerService_CanPlayerTeleportToBattleground_FullMethodName = "/v1.WorldServerService/CanPlayerTeleportToBattleground"
 )
 
 // WorldServerServiceClient is the client API for WorldServerService service.
@@ -47,7 +46,6 @@ type WorldServerServiceClient interface {
 	// Interactions
 	CanPlayerInteractWithNPC(ctx context.Context, in *CanPlayerInteractWithNPCRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithNPCResponse, error)
 	CanPlayerInteractWithGameObject(ctx context.Context, in *CanPlayerInteractWithGameObjectRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithGameObjectResponse, error)
-	GetAreaTriggerTeleportDestination(ctx context.Context, in *GetAreaTriggerTeleportDestinationRequest, opts ...grpc.CallOption) (*GetAreaTriggerTeleportDestinationResponse, error)
 	// Battlegrounds
 	StartBattleground(ctx context.Context, in *StartBattlegroundRequest, opts ...grpc.CallOption) (*StartBattlegroundResponse, error)
 	AddPlayersToBattleground(ctx context.Context, in *AddPlayersToBattlegroundRequest, opts ...grpc.CallOption) (*AddPlayersToBattlegroundResponse, error)
@@ -126,15 +124,6 @@ func (c *worldServerServiceClient) CanPlayerInteractWithGameObject(ctx context.C
 	return out, nil
 }
 
-func (c *worldServerServiceClient) GetAreaTriggerTeleportDestination(ctx context.Context, in *GetAreaTriggerTeleportDestinationRequest, opts ...grpc.CallOption) (*GetAreaTriggerTeleportDestinationResponse, error) {
-	out := new(GetAreaTriggerTeleportDestinationResponse)
-	err := c.cc.Invoke(ctx, WorldServerService_GetAreaTriggerTeleportDestination_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *worldServerServiceClient) StartBattleground(ctx context.Context, in *StartBattlegroundRequest, opts ...grpc.CallOption) (*StartBattlegroundResponse, error) {
 	out := new(StartBattlegroundResponse)
 	err := c.cc.Invoke(ctx, WorldServerService_StartBattleground_FullMethodName, in, out, opts...)
@@ -185,7 +174,6 @@ type WorldServerServiceServer interface {
 	// Interactions
 	CanPlayerInteractWithNPC(context.Context, *CanPlayerInteractWithNPCRequest) (*CanPlayerInteractWithNPCResponse, error)
 	CanPlayerInteractWithGameObject(context.Context, *CanPlayerInteractWithGameObjectRequest) (*CanPlayerInteractWithGameObjectResponse, error)
-	GetAreaTriggerTeleportDestination(context.Context, *GetAreaTriggerTeleportDestinationRequest) (*GetAreaTriggerTeleportDestinationResponse, error)
 	// Battlegrounds
 	StartBattleground(context.Context, *StartBattlegroundRequest) (*StartBattlegroundResponse, error)
 	AddPlayersToBattleground(context.Context, *AddPlayersToBattlegroundRequest) (*AddPlayersToBattlegroundResponse, error)
@@ -218,9 +206,6 @@ func (UnimplementedWorldServerServiceServer) CanPlayerInteractWithNPC(context.Co
 }
 func (UnimplementedWorldServerServiceServer) CanPlayerInteractWithGameObject(context.Context, *CanPlayerInteractWithGameObjectRequest) (*CanPlayerInteractWithGameObjectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CanPlayerInteractWithGameObject not implemented")
-}
-func (UnimplementedWorldServerServiceServer) GetAreaTriggerTeleportDestination(context.Context, *GetAreaTriggerTeleportDestinationRequest) (*GetAreaTriggerTeleportDestinationResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAreaTriggerTeleportDestination not implemented")
 }
 func (UnimplementedWorldServerServiceServer) StartBattleground(context.Context, *StartBattlegroundRequest) (*StartBattlegroundResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartBattleground not implemented")
@@ -373,24 +358,6 @@ func _WorldServerService_CanPlayerInteractWithGameObject_Handler(srv interface{}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _WorldServerService_GetAreaTriggerTeleportDestination_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAreaTriggerTeleportDestinationRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(WorldServerServiceServer).GetAreaTriggerTeleportDestination(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: WorldServerService_GetAreaTriggerTeleportDestination_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WorldServerServiceServer).GetAreaTriggerTeleportDestination(ctx, req.(*GetAreaTriggerTeleportDestinationRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _WorldServerService_StartBattleground_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StartBattlegroundRequest)
 	if err := dec(in); err != nil {
@@ -497,10 +464,6 @@ var WorldServerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CanPlayerInteractWithGameObject",
 			Handler:    _WorldServerService_CanPlayerInteractWithGameObject_Handler,
-		},
-		{
-			MethodName: "GetAreaTriggerTeleportDestination",
-			Handler:    _WorldServerService_GetAreaTriggerTeleportDestination_Handler,
 		},
 		{
 			MethodName: "StartBattleground",

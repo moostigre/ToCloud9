@@ -14,10 +14,10 @@ import (
 )
 
 type gatewayRedisRepo struct {
-	rdb *redis.Client
+	rdb redis.UniversalClient
 }
 
-func NewGatewayRedisRepo(rdb *redis.Client) GatewayRepo {
+func NewGatewayRedisRepo(rdb redis.UniversalClient) GatewayRepo {
 	return &gatewayRedisRepo{rdb: rdb}
 }
 

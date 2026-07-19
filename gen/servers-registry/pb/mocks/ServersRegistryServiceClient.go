@@ -461,6 +461,43 @@ func (_m *ServersRegistryServiceClient) RegisterGateway(ctx context.Context, in 
 	return r0, r1
 }
 
+// SelectGameServerForAreaTrigger provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) SelectGameServerForAreaTrigger(ctx context.Context, in *pb.SelectGameServerForAreaTriggerRequest, opts ...grpc.CallOption) (*pb.SelectGameServerForAreaTriggerResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SelectGameServerForAreaTrigger")
+	}
+
+	var r0 *pb.SelectGameServerForAreaTriggerResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.SelectGameServerForAreaTriggerRequest, ...grpc.CallOption) (*pb.SelectGameServerForAreaTriggerResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.SelectGameServerForAreaTriggerRequest, ...grpc.CallOption) *pb.SelectGameServerForAreaTriggerResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.SelectGameServerForAreaTriggerResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.SelectGameServerForAreaTriggerRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // SelectGameServerForPlayer provides a mock function with given fields: ctx, in, opts
 func (_m *ServersRegistryServiceClient) SelectGameServerForPlayer(ctx context.Context, in *pb.SelectGameServerForPlayerRequest, opts ...grpc.CallOption) (*pb.SelectGameServerForPlayerResponse, error) {
 	_va := make([]interface{}, len(opts))

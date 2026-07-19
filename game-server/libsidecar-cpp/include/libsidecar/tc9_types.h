@@ -95,12 +95,6 @@ typedef struct TC9BattlegroundAddPlayersRequest {
     int alliancePlayerCount;
 } TC9BattlegroundAddPlayersRequest;
 
-typedef struct TC9GetAreaTriggerTeleportDestinationResponse {
-    int errorCode;
-    bool found;
-    uint32_t destinationMapID;
-} TC9GetAreaTriggerTeleportDestinationResponse;
-
 /*
  * Callback function types
  * These are registered by AzerothCore and called by libsidecar
@@ -154,10 +148,6 @@ typedef bool (*TC9CanPlayerInteractWithGOHandler)(
     uint64_t goGuid,
     uint8_t goType,
     int* errorCode  /* OUT: error code */
-);
-
-typedef TC9GetAreaTriggerTeleportDestinationResponse (*TC9GetAreaTriggerTeleportDestinationHandler)(
-    uint32_t triggerID
 );
 
 /* Start battleground */

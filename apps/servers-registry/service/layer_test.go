@@ -110,6 +110,25 @@ func TestRegistryReplicasShareAtomicGroupBinding(t *testing.T) {
 	require.Equal(t, "layer-2", first.Server.ID)
 }
 
+func TestGroupAffinityAlsoAppliesToUnlayeredMaps(t *testing.T) {
+	store := newLayerStoreStub()
+	servers := &layerServersStub{servers: []repo.GameServer{
+		{ID: "instance-a", ActiveConnections: 0},
+		{ID: "instance-b", ActiveConnections: 2},
+	}}
+	layers := NewLayer(servers, store)
+
+	first, err := layers.Select(context.Background(), 1, 389, 77, 0)
+	require.NoError(t, err)
+	servers.servers[0].ActiveConnections = 9
+	servers.servers[1].ActiveConnections = 0
+	second, err := layers.Select(context.Background(), 1, 389, 77, 0)
+	require.NoError(t, err)
+
+	require.Equal(t, "instance-a", first.Server.ID)
+	require.Equal(t, first.Server.ID, second.Server.ID)
+}
+
 func TestStaleGroupBindingMovesToAvailableServer(t *testing.T) {
 	store := newLayerStoreStub()
 	require.NoError(t, store.SetConfiguration(context.Background(), 1, map[uint32]uint32{1: 2}))

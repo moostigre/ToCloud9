@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	nats "github.com/nats-io/nats.go"
 	redis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -56,15 +58,13 @@ func main() {
 	}
 	defer nc.Close()
 
-	opt, err := redis.ParseURL(conf.RedisConnection)
+	rdb, err := newRedisClient(conf)
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't connect to the redis")
+		log.Fatal().Err(err).Msg("can't configure redis")
 	}
-
-	rdb := redis.NewClient(opt)
 	pingRes := rdb.Ping(context.Background())
 	if pingRes.Err() != nil {
-		log.Fatal().Err(err).Msg("can't connect to redis")
+		log.Fatal().Err(pingRes.Err()).Msg("can't connect to redis")
 	}
 	defer rdb.Close()
 
@@ -76,6 +76,29 @@ func main() {
 
 	supportedRealms := conf.RealmsID
 	layerStore := repo.NewLayerRedisStore(rdb)
+	if conf.AreaTriggerCatalogVersion == "" || strings.ContainsAny(conf.AreaTriggerCatalogVersion, "{}") {
+		log.Fatal().Str("catalogVersion", conf.AreaTriggerCatalogVersion).Msg("invalid area-trigger catalog version")
+	}
+	portalStore := repo.NewPortalRedisStore(rdb, conf.AreaTriggerCatalogVersion)
+	if conf.AreaTriggerCatalogImportEnabled {
+		worldDB, dbErr := sql.Open("mysql", conf.WorldDBConnection)
+		if dbErr != nil {
+			log.Fatal().Err(dbErr).Msg("can't open world database for area-trigger import")
+		}
+		if dbErr = worldDB.PingContext(mainContext); dbErr != nil {
+			_ = worldDB.Close()
+			log.Fatal().Err(dbErr).Msg("can't connect to world database for area-trigger import")
+		}
+		destinations, importErr := repo.LoadAreaTriggerTeleportDestinations(mainContext, worldDB)
+		_ = worldDB.Close()
+		if importErr != nil {
+			log.Fatal().Err(importErr).Msg("can't import area-trigger teleport destinations")
+		}
+		if importErr = portalStore.ReplaceDestinations(mainContext, destinations); importErr != nil {
+			log.Fatal().Err(importErr).Msg("can't publish area-trigger teleport destinations to redis")
+		}
+		log.Info().Int("destinations", len(destinations)).Str("catalogVersion", conf.AreaTriggerCatalogVersion).Msg("Imported area-trigger teleport destinations")
+	}
 	gameServersService, err := service.NewGameServer(
 		mainContext,
 		repo.NewGameServerRedisRepo(rdb),
@@ -103,6 +126,7 @@ func main() {
 	}
 
 	layerService := service.NewLayer(gameServersService, layerStore)
+	portalService := service.NewPortal(gameServersService, layerService, portalStore)
 	startupLayers := make(map[uint32]uint32, len(conf.Layering.Maps)+len(conf.Layering.MapSpecs))
 	for _, item := range conf.Layering.Maps {
 		startupLayers[item.MapID] = item.Layers
@@ -127,7 +151,7 @@ func main() {
 		}
 	}
 
-	registryService := server.NewServersRegistry(gameServersService, gatewayService, layerService)
+	registryService := server.NewServersRegistry(gameServersService, gatewayService, layerService, portalService)
 	if conf.LogLevel == zerolog.DebugLevel {
 		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)
 	}
@@ -159,4 +183,21 @@ func main() {
 	wg.Wait()
 
 	log.Info().Msg("👍 Server successfully stopped.")
+}
+
+func newRedisClient(conf *config.Config) (redis.UniversalClient, error) {
+	if len(conf.RedisAddresses) > 0 {
+		return redis.NewUniversalClient(&redis.UniversalOptions{
+			Addrs:      conf.RedisAddresses,
+			MasterName: conf.RedisMasterName,
+			Username:   conf.RedisUsername,
+			Password:   conf.RedisPassword,
+			DB:         conf.RedisDB,
+		}), nil
+	}
+	opt, err := redis.ParseURL(conf.RedisConnection)
+	if err != nil {
+		return nil, err
+	}
+	return redis.NewClient(opt), nil
 }

@@ -11,6 +11,7 @@ service ServersRegistryService {
   rpc ListAllGameServers(ListAllGameServersRequest) returns (ListGameServersResponse);
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
   rpc SelectGameServerForPlayer(SelectGameServerForPlayerRequest) returns (SelectGameServerForPlayerResponse);
+  rpc SelectGameServerForAreaTrigger(SelectGameServerForAreaTriggerRequest) returns (SelectGameServerForAreaTriggerResponse);
   rpc BindGroupToGameServer(BindGroupToGameServerRequest) returns (BindGroupToGameServerResponse);
   rpc GetMapLayerConfiguration(GetMapLayerConfigurationRequest) returns (GetMapLayerConfigurationResponse);
   rpc UpdateMapLayerConfiguration(UpdateMapLayerConfigurationRequest) returns (UpdateMapLayerConfigurationResponse);
@@ -154,6 +155,30 @@ message SelectGameServerForPlayerResponse {
   Status status = 2;
   Server gameServer = 3;
   uint32 layerID = 4;
+}
+
+// SelectGameServerForAreaTrigger resolves an immutable game-data mapping and
+// atomically places the player's group (or character when solo) on a core.
+// AzerothCore remains responsible for creating/reusing the native instance.
+message SelectGameServerForAreaTriggerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 characterGUID = 3;
+  uint32 groupID = 4;
+  uint32 areaTriggerID = 5;
+}
+
+message SelectGameServerForAreaTriggerResponse {
+  enum Status {
+    OK = 0;
+    TRIGGER_NOT_FOUND = 1;
+    NO_SERVER = 2;
+  }
+  string api = 1;
+  Status status = 2;
+  uint32 destinationMapID = 3;
+  Server gameServer = 4;
+  uint32 layerID = 5;
 }
 
 message BindGroupToGameServerRequest {

@@ -366,24 +366,6 @@ TC9_API void TC9BattlegroundStatusChanged(uint32_t instanceID, uint8_t status) {
 // and store them. The actual gRPC handlers will call these stored callbacks
 // after converting from protocol buffer types to old Go types.
 
-TC9_API void TC9SetGetAreaTriggerTeleportDestinationHandler(GetAreaTriggerTeleportDestinationHandler handler) {
-    static GetAreaTriggerTeleportDestinationHandler stored_handler = nullptr;
-    stored_handler = handler;
-
-    g_state.bindings.get_area_trigger_teleport_destination = [](uint32_t triggerID) -> TC9GetAreaTriggerTeleportDestinationResponse {
-        TC9GetAreaTriggerTeleportDestinationResponse response{};
-        if (!stored_handler) {
-            response.errorCode = TC9_ERROR_NO_HANDLER;
-            return response;
-        }
-        GetAreaTriggerTeleportDestinationResponse old_response = stored_handler(triggerID);
-        response.errorCode = old_response.errorCode;
-        response.found = old_response.found;
-        response.destinationMapID = old_response.destinationMapID;
-        return response;
-    };
-}
-
 TC9_API void TC9SetGetPlayerItemsByGuidsHandler(GetPlayerItemsByGuidsHandler handler) {
     static GetPlayerItemsByGuidsHandler stored_handler = nullptr;
     stored_handler = handler;

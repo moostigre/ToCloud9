@@ -10,54 +10,48 @@ import (
 	socketMock "github.com/walkline/ToCloud9/apps/gateway/sockets/socketmock"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	servMock "github.com/walkline/ToCloud9/gen/servers-registry/pb/mocks"
-	pbWorld "github.com/walkline/ToCloud9/gen/worldserver/pb"
-	worldMock "github.com/walkline/ToCloud9/gen/worldserver/pb/mocks"
 )
 
 func TestAreaTriggerWithoutTeleportIsForwarded(t *testing.T) {
 	worldSocket := &socketMock.Socket{}
-	worldClient := &worldMock.WorldServerServiceClient{}
+	registry := &servMock.ServersRegistryServiceClient{}
 	s := &GameSession{
-		character:            &LoggedInCharacter{GUID: 1},
-		worldSocket:          worldSocket,
-		gameServerGRPCClient: worldClient,
+		character:             &LoggedInCharacter{GUID: 1},
+		worldSocket:           worldSocket,
+		serversRegistryClient: registry,
 	}
 	p := packet.NewWriterWithSize(packet.CMsgAreaTrigger, 4).Uint32(123).ToPacket()
-	worldClient.On("GetAreaTriggerTeleportDestination", mock.Anything, mock.MatchedBy(func(req *pbWorld.GetAreaTriggerTeleportDestinationRequest) bool {
-		return req.TriggerID == 123
-	})).Return(&pbWorld.GetAreaTriggerTeleportDestinationResponse{Found: false}, nil).Once()
+	registry.On("SelectGameServerForAreaTrigger", mock.Anything, mock.MatchedBy(func(req *pbServ.SelectGameServerForAreaTriggerRequest) bool {
+		return req.AreaTriggerID == 123 && req.CharacterGUID == 1
+	})).Return(&pbServ.SelectGameServerForAreaTriggerResponse{Status: pbServ.SelectGameServerForAreaTriggerResponse_TRIGGER_NOT_FOUND}, nil).Once()
 	worldSocket.On("SendPacket", p).Once()
 
 	require.NoError(t, s.HandleAreaTrigger(context.Background(), p))
-	worldClient.AssertExpectations(t)
+	registry.AssertExpectations(t)
 	worldSocket.AssertExpectations(t)
 }
 
 func TestAreaTriggerAlreadyOnSelectedServerIsForwarded(t *testing.T) {
 	worldSocket := &socketMock.Socket{}
-	worldClient := &worldMock.WorldServerServiceClient{}
 	registry := &servMock.ServersRegistryServiceClient{}
 	s := &GameSession{
 		character:             &LoggedInCharacter{GUID: 1},
 		worldSocket:           worldSocket,
-		gameServerGRPCClient:  worldClient,
 		serversRegistryClient: registry,
 		currentGameServerID:   "current",
 	}
 	p := packet.NewWriterWithSize(packet.CMsgAreaTrigger, 4).Uint32(2230).ToPacket()
-	worldClient.On("GetAreaTriggerTeleportDestination", mock.Anything, mock.Anything).
-		Return(&pbWorld.GetAreaTriggerTeleportDestinationResponse{Found: true, DestinationMapID: 389}, nil).Once()
-	registry.On("SelectGameServerForPlayer", mock.Anything, mock.MatchedBy(func(req *pbServ.SelectGameServerForPlayerRequest) bool {
-		return req.MapID == 389
-	})).Return(&pbServ.SelectGameServerForPlayerResponse{
-		Status:     pbServ.SelectGameServerForPlayerResponse_OK,
-		GameServer: &pbServ.Server{ID: "current"},
+	registry.On("SelectGameServerForAreaTrigger", mock.Anything, mock.MatchedBy(func(req *pbServ.SelectGameServerForAreaTriggerRequest) bool {
+		return req.AreaTriggerID == 2230
+	})).Return(&pbServ.SelectGameServerForAreaTriggerResponse{
+		Status:           pbServ.SelectGameServerForAreaTriggerResponse_OK,
+		DestinationMapID: 389,
+		GameServer:       &pbServ.Server{ID: "current"},
 	}, nil).Once()
 	worldSocket.On("SendPacket", p).Once()
 
 	require.NoError(t, s.HandleAreaTrigger(context.Background(), p))
 	registry.AssertExpectations(t)
-	worldClient.AssertExpectations(t)
 	worldSocket.AssertExpectations(t)
 }
 

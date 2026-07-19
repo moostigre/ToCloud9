@@ -32,6 +32,9 @@ func (s *serversRegistryDebugLoggerMiddleware) RegisterGameServer(ctx context.Co
 func (s *serversRegistryDebugLoggerMiddleware) SelectGameServerForPlayer(ctx context.Context, request *pb.SelectGameServerForPlayerRequest) (*pb.SelectGameServerForPlayerResponse, error) {
 	return s.realService.SelectGameServerForPlayer(ctx, request)
 }
+func (s *serversRegistryDebugLoggerMiddleware) SelectGameServerForAreaTrigger(ctx context.Context, request *pb.SelectGameServerForAreaTriggerRequest) (*pb.SelectGameServerForAreaTriggerResponse, error) {
+	return s.realService.SelectGameServerForAreaTrigger(ctx, request)
+}
 func (s *serversRegistryDebugLoggerMiddleware) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
 	return s.realService.BindGroupToGameServer(ctx, request)
 }

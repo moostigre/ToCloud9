@@ -7,35 +7,33 @@ import (
 	root "github.com/walkline/ToCloud9/apps/gateway"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
-	pbWorld "github.com/walkline/ToCloud9/gen/worldserver/pb"
 )
 
 // HandleAreaTrigger routes map-changing triggers before AzerothCore processes
 // them. This ensures only the worldserver selected for the destination map can
 // create or reuse a dungeon instance.
 func (s *GameSession) HandleAreaTrigger(ctx context.Context, p *packet.Packet) error {
-	if s.worldSocket == nil || s.gameServerGRPCClient == nil || s.character == nil {
+	if s.worldSocket == nil || s.serversRegistryClient == nil || s.character == nil {
 		return nil
 	}
 
 	triggerID := p.Reader().Uint32()
-	resolved, err := s.gameServerGRPCClient.GetAreaTriggerTeleportDestination(ctx, &pbWorld.GetAreaTriggerTeleportDestinationRequest{
-		Api: root.SupportedGameServerVer, TriggerID: triggerID,
+	selection, err := s.serversRegistryClient.SelectGameServerForAreaTrigger(ctx, &pbServ.SelectGameServerForAreaTriggerRequest{
+		Api:           root.SupportedServerRegistryVer,
+		RealmID:       root.RealmID,
+		CharacterGUID: s.character.GUID,
+		GroupID:       s.groupIDForPlayer(ctx, s.character.GUID),
+		AreaTriggerID: triggerID,
 	})
 	if err != nil {
-		return fmt.Errorf("resolve area trigger %d: %w", triggerID, err)
+		return fmt.Errorf("select gameserver for area trigger %d: %w", triggerID, err)
 	}
-	if !resolved.Found {
+	if selection.Status == pbServ.SelectGameServerForAreaTriggerResponse_TRIGGER_NOT_FOUND {
 		s.worldSocket.SendPacket(p)
 		return nil
 	}
-
-	selection, err := s.selectGameServerForMap(ctx, s.character.GUID, resolved.DestinationMapID)
-	if err != nil {
-		return fmt.Errorf("select gameserver for area trigger %d destination map %d: %w", triggerID, resolved.DestinationMapID, err)
-	}
-	if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK || selection.GameServer == nil {
-		return fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, resolved.DestinationMapID)
+	if selection.Status != pbServ.SelectGameServerForAreaTriggerResponse_OK || selection.GameServer == nil {
+		return fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, selection.DestinationMapID)
 	}
 
 	target := selection.GameServer

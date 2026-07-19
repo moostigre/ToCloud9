@@ -496,7 +496,6 @@ install(TARGETS libsidecar
 # Install compatibility headers to root include directory (matching Go structure)
 install(FILES
     include/libsidecar.h
-    include/area-trigger-api.h
     include/events-guild.h
     include/events-group.h
     include/events-servers-registry.h

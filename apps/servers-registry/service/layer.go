@@ -54,20 +54,16 @@ func (l *layerService) Select(ctx context.Context, realmID, mapID, groupID, forc
 		return LayerSelection{}, err
 	}
 	layerCount := config[mapID]
-	if layerCount < 2 {
-		if len(servers) == 0 {
-			return LayerSelection{Status: LayerSelectionNoServer}, nil
-		}
-		return LayerSelection{Status: LayerSelectionOK, Server: leastLoaded(servers)}, nil
-	}
-
-	candidates := make([]repo.GameServer, 0, len(servers))
-	for _, server := range servers {
-		if server.LayerID > 0 && server.LayerID <= layerCount && (forcedLayerID == 0 || server.LayerID == forcedLayerID) {
-			candidates = append(candidates, server)
+	candidates := servers
+	if layerCount >= 2 {
+		candidates = make([]repo.GameServer, 0, len(servers))
+		for _, server := range servers {
+			if server.LayerID > 0 && server.LayerID <= layerCount && (forcedLayerID == 0 || server.LayerID == forcedLayerID) {
+				candidates = append(candidates, server)
+			}
 		}
 	}
-	if forcedLayerID > layerCount {
+	if forcedLayerID != 0 && (layerCount < 2 || forcedLayerID > layerCount) {
 		return LayerSelection{Status: LayerSelectionNotFound}, nil
 	}
 	if len(candidates) == 0 {

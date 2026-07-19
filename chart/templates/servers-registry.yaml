@@ -21,10 +21,32 @@ spec:
         env:
         - name: PORT
           value: "{{ .Values.servers_registry.service.internalPort | int }}"
+{{- if .Values.servers_registry.redis.addresses }}
+        - name: REDIS_ADDRESSES
+          value: "{{ join "," .Values.servers_registry.redis.addresses }}"
+        - name: REDIS_MASTER_NAME
+          value: "{{ .Values.servers_registry.redis.masterName }}"
+        - name: REDIS_USERNAME
+          value: "{{ .Values.servers_registry.redis.username }}"
+        - name: REDIS_PASSWORD
+          value: "{{ .Values.servers_registry.redis.password }}"
+        - name: REDIS_DB
+          value: "{{ .Values.servers_registry.redis.database | int }}"
+{{- else }}
         - name: REDIS_URL
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
+{{- end }}
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: WORLD_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: WORLD_DB_CONNECTION
+        - name: AREA_TRIGGER_CATALOG_VERSION
+          value: "{{ .Values.servers_registry.portalCatalog.version }}"
+        - name: AREA_TRIGGER_CATALOG_IMPORT_ENABLED
+          value: "{{ .Values.servers_registry.portalCatalog.importEnabled }}"
         - name: LAYER_MAPS
           value: "{{ join "," .Values.servers_registry.layering.maps }}"
         ports:

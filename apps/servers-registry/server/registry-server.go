@@ -22,14 +22,35 @@ type serversRegistry struct {
 	gService  service.GameServer
 	lbService service.Gateway
 	layer     service.Layer
+	portal    service.Portal
 }
 
-func NewServersRegistry(gService service.GameServer, lbService service.Gateway, layer service.Layer) pb.ServersRegistryServiceServer {
+func NewServersRegistry(gService service.GameServer, lbService service.Gateway, layer service.Layer, portal service.Portal) pb.ServersRegistryServiceServer {
 	return &serversRegistry{
 		gService:  gService,
 		lbService: lbService,
 		layer:     layer,
+		portal:    portal,
 	}
+}
+
+func (s *serversRegistry) SelectGameServerForAreaTrigger(ctx context.Context, request *pb.SelectGameServerForAreaTriggerRequest) (*pb.SelectGameServerForAreaTriggerResponse, error) {
+	selection, err := s.portal.Select(ctx, request.RealmID, request.CharacterGUID, request.GroupID, request.AreaTriggerID)
+	if err != nil {
+		return nil, err
+	}
+	response := &pb.SelectGameServerForAreaTriggerResponse{Api: ver, DestinationMapID: selection.DestinationMapID}
+	switch selection.Status {
+	case service.PortalSelectionTriggerNotFound:
+		response.Status = pb.SelectGameServerForAreaTriggerResponse_TRIGGER_NOT_FOUND
+	case service.PortalSelectionNoServer:
+		response.Status = pb.SelectGameServerForAreaTriggerResponse_NO_SERVER
+	default:
+		response.Status = pb.SelectGameServerForAreaTriggerResponse_OK
+		response.LayerID = selection.Server.LayerID
+		response.GameServer = &pb.Server{ID: selection.Server.ID, Address: selection.Server.Address, RealmID: selection.Server.RealmID, GrpcAddress: selection.Server.GRPCAddress, LayerID: selection.Server.LayerID}
+	}
+	return response, nil
 }
 
 func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.RegisterGameServerRequest) (*pb.RegisterGameServerResponse, error) {

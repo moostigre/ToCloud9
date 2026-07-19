@@ -12,11 +12,11 @@ import (
 	redis "github.com/redis/go-redis/v9"
 )
 
-type layerRedisStore struct{ rdb *redis.Client }
+type layerRedisStore struct{ rdb redis.UniversalClient }
 
 const groupBindingTTL = 24 * time.Hour
 
-func NewLayerRedisStore(rdb *redis.Client) LayerStore { return &layerRedisStore{rdb: rdb} }
+func NewLayerRedisStore(rdb redis.UniversalClient) LayerStore { return &layerRedisStore{rdb: rdb} }
 
 func (s *layerRedisStore) Configuration(ctx context.Context, realmID uint32) (map[uint32]uint32, error) {
 	value, err := s.rdb.Get(ctx, s.configurationKey(realmID)).Bytes()

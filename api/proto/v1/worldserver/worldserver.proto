@@ -18,7 +18,6 @@ service WorldServerService {
   // Interactions
   rpc CanPlayerInteractWithNPC(CanPlayerInteractWithNPCRequest) returns (CanPlayerInteractWithNPCResponse);
   rpc CanPlayerInteractWithGameObject(CanPlayerInteractWithGameObjectRequest) returns (CanPlayerInteractWithGameObjectResponse);
-  rpc GetAreaTriggerTeleportDestination(GetAreaTriggerTeleportDestinationRequest) returns (GetAreaTriggerTeleportDestinationResponse);
 
   // Battlegrounds
   rpc StartBattleground(StartBattlegroundRequest) returns (StartBattlegroundResponse);
@@ -154,19 +153,6 @@ message CanPlayerInteractWithGameObjectResponse {
   string api = 1;
 
   bool canInteract = 2;
-}
-
-// GetAreaTriggerTeleportDestination maps a client area-trigger ID to its teleport destination.
-// It is read-only; worldserver remains the source of truth for game data.
-message GetAreaTriggerTeleportDestinationRequest {
-  string api = 1;
-  uint32 triggerID = 2;
-}
-
-message GetAreaTriggerTeleportDestinationResponse {
-  string api = 1;
-  bool found = 2;
-  uint32 destinationMapID = 3;
 }
 
 enum BattlegroundType {

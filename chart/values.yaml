@@ -50,6 +50,18 @@ servers_registry:
   layering:
     # Fixed per-map layer counts. Runtime updates are persisted in Redis.
     maps: []
+  portalCatalog:
+    # Change this when the deployed AzerothCore world data changes.
+    version: default
+    importEnabled: true
+  redis:
+    # Leave empty for the chart-managed Redis endpoint. Multiple addresses use
+    # Redis Cluster; addresses plus masterName use Redis Sentinel.
+    addresses: []
+    masterName: ""
+    username: ""
+    password: ""
+    database: 0
 
 authserver:
   replicaCount: 1
