@@ -206,20 +206,17 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	s.teleportingToNewMap = nil
 	s.character.ignoreNextInterceptToNewMap = nil
 
-	serversResult, err := s.serversRegistryClient.AvailableGameServersForMapAndRealm(s.ctx, &pbServ.AvailableGameServersForMapAndRealmRequest{
-		Api:     root.SupportedCharServiceVer,
-		RealmID: root.RealmID,
-		MapID:   mapID,
-	})
+	selection, err := s.selectGameServerForMap(ctx, s.character.GUID, mapID)
 	if err != nil {
 		return err
 	}
-	if len(serversResult.GameServers) == 0 {
+	if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK || selection.GameServer == nil {
 		return fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapID)
 	}
 
 	oldServerAddress := s.worldSocket.Address()
-	desiredServerAddress := serversResult.GameServers[0].Address
+	desiredServer := selection.GameServer
+	desiredServerAddress := desiredServer.Address
 
 	if desiredServerAddress == oldServerAddress {
 		s.pendingWorldPort = nil
@@ -289,7 +286,13 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	go func(charGUID uint64) {
 		var err error
 		var socket sockets.Socket
-		_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID, nil)
+		s.gameServerGRPCConnMgr.AddAddressMapping(desiredServer.Address, desiredServer.GrpcAddress)
+		client, clientErr := s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(desiredServer.Address)
+		if clientErr != nil {
+			err = clientErr
+		} else {
+			socket, err = s.connectToGameServerWithAddress(context.Background(), charGUID, desiredServer.Address, nil)
+		}
 		if err != nil {
 			s.logger.Error().Err(err).Msg("failed to reconnect player to the world")
 			resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
@@ -304,6 +307,9 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 		s.sessionSafeFuChan <- func(session *GameSession) {
 			if session.character != nil {
 				session.worldSocket = socket
+				session.gameServerGRPCClient = client
+				session.currentGameServerID = desiredServer.ID
+				session.currentLayerID = desiredServer.LayerID
 			}
 
 			if session.showGameserverConnChangeToClient {

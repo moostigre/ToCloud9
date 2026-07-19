@@ -444,16 +444,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		mapIDToLogin = *mapID
 	}
 
-	groupID := s.currentGroupID
-	if groupID == 0 && s.groupServiceClient != nil {
-		if group, groupErr := s.groupServiceClient.GetGroupIDByPlayer(ctx, &pbGroup.GetGroupIDByPlayerRequest{Api: root.SupportedGroupServiceVer, RealmID: root.RealmID, Player: characterGUID}); groupErr == nil {
-			groupID = group.GroupID
-			s.currentGroupID = groupID
-		}
-	}
-	selection, err := s.serversRegistryClient.SelectGameServerForPlayer(s.ctx, &pbServ.SelectGameServerForPlayerRequest{
-		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapIDToLogin, GroupID: groupID,
-	})
+	selection, err := s.selectGameServerForMap(ctx, characterGUID, mapIDToLogin)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't select game server for map: %w", err)
 	}
@@ -476,6 +467,19 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		s.currentLayerID = selected.LayerID
 	}
 	return r.Character, socket, err
+}
+
+func (s *GameSession) selectGameServerForMap(ctx context.Context, characterGUID uint64, mapID uint32) (*pbServ.SelectGameServerForPlayerResponse, error) {
+	groupID := s.currentGroupID
+	if groupID == 0 && s.groupServiceClient != nil {
+		if group, groupErr := s.groupServiceClient.GetGroupIDByPlayer(ctx, &pbGroup.GetGroupIDByPlayerRequest{Api: root.SupportedGroupServiceVer, RealmID: root.RealmID, Player: characterGUID}); groupErr == nil {
+			groupID = group.GroupID
+			s.currentGroupID = groupID
+		}
+	}
+	return s.serversRegistryClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapID, GroupID: groupID,
+	})
 }
 
 func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, characterGUID uint64, gameserverAddress string, preLoginHook func(sockets.Socket)) (sockets.Socket, error) {
