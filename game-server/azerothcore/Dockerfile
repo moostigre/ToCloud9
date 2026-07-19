@@ -59,6 +59,7 @@ RUN git -C /repo apply /patches/0001-get-area-trigger-teleport-destination.patch
 
 COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
 COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/area-trigger-api.h ./repo/deps/libsidecar/include/area-trigger-api.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-guild.h ./repo/deps/libsidecar/include/events-guild.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-group.h ./repo/deps/libsidecar/include/events-group.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-servers-registry.h ./repo/deps/libsidecar/include/events-servers-registry.h
