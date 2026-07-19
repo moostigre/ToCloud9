@@ -29,6 +29,7 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgMessageChat:              NewHandler("CMsgMessageChat", (*GameSession).HandleChatMessage),
 	packet.CMsgGuildQuery:               NewHandler("CMsgGuildQuery", (*GameSession).HandleGuildQuery),
 	packet.CMsgWho:                      NewHandler("CMsgWho", (*GameSession).HandleWho),
+	packet.CMsgAreaTrigger:              NewHandler("CMsgAreaTrigger", (*GameSession).HandleAreaTrigger),
 
 	// Friends
 	packet.CMsgContactList:     NewHandler("CMsgContactList", (*GameSession).HandleContactList),

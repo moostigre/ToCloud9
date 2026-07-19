@@ -374,6 +374,10 @@ func (s *GameSession) InterceptAccountDataTimes(ctx context.Context, p *packet.P
 func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Packet) error {
 	s.worldEntryPending = false
 	s.gameSocket.SendPacket(p)
+	if s.pendingAreaTrigger != nil && s.worldSocket != nil {
+		s.worldSocket.SendPacket(s.pendingAreaTrigger)
+		s.pendingAreaTrigger = nil
+	}
 	return nil
 }
 

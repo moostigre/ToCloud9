@@ -77,6 +77,7 @@ type GameSession struct {
 
 	teleportingToNewMap *uint32
 	pendingWorldPort    *worldPortDestination
+	pendingAreaTrigger  *packet.Packet
 
 	// worldEntryPending is true between the login (or redirect) request and
 	// the first SMsgTimeSyncReq from the world server. During that window the
