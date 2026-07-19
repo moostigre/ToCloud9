@@ -109,6 +109,9 @@ servers-registry:
   worldDB: *defaultWorldDB
   areaTriggerCatalogVersion: "default"
   areaTriggerCatalogImportEnabled: true
+  # Number of cores that may host each instance map. Individual instances
+  # remain pinned to one owner through Redis affinity.
+  instancePoolReplicas: 1
   logging: *defaultLogging
   realmsID:
     - 1

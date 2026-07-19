@@ -47,6 +47,8 @@ spec:
           value: "{{ .Values.servers_registry.portalCatalog.version }}"
         - name: AREA_TRIGGER_CATALOG_IMPORT_ENABLED
           value: "{{ .Values.servers_registry.portalCatalog.importEnabled }}"
+        - name: INSTANCE_POOL_REPLICAS
+          value: "{{ .Values.servers_registry.instancePool.replicas }}"
         - name: LAYER_MAPS
           value: "{{ join "," .Values.servers_registry.layering.maps }}"
         ports:

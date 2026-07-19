@@ -12,7 +12,7 @@ player assignment cache.
 The registry also owns portal placement. The gateway sends the area-trigger ID,
 realm, character and group to `SelectGameServerForAreaTrigger`. The registry
 resolves the destination map from a versioned Redis catalog and atomically binds
-the group (or the character when solo) to an eligible gameserver. The gateway
+the group and character to an eligible gameserver. The gateway
 redirects first and replays the original area-trigger packet only after the
 destination gameserver has accepted the player. Therefore only that gameserver
 executes the portal and creates or reuses the native AzerothCore instance.
@@ -44,10 +44,35 @@ For a configured map, the registry assigns one compatible gameserver for every
 layer ID from 1 through the configured count. Layer IDs must be unique among
 gameservers capable of hosting the same map.
 
+Dungeon and raid maps must not be listed in `LAYER_MAPS`. They use the separate
+instance pool described below.
+
+### Instance server pool
+
+The registry imports the authoritative instance-map list from
+`instance_template`. `INSTANCE_POOL_REPLICAS` controls how many compatible
+gameserver processes are assigned each dungeon and raid map:
+
+```yaml
+servers-registry:
+  instancePoolReplicas: 2
+```
+
+This creates capacity, not instance layers. A core may host many different
+native AzerothCore instances, but each individual instance route has exactly
+one owning core. Outdoor `LAYER_ID` is ignored for instance selection and a
+forced `.layer switch` is rejected while inside an instance.
+
+To dedicate gameserver pods to instances, configure their
+`Cluster.AvailableMaps` with the imported dungeon/raid map IDs. The registry
+prefers these explicitly scoped cores over all-map cores when filling the
+instance pool.
+
 ### Portal catalog
 
-At registry startup, `areatrigger_teleport` is imported from the AzerothCore
-world database into a Redis hash. Configure the database and catalog version:
+At registry startup, `areatrigger_teleport` and `instance_template` are imported
+from the AzerothCore world database into a versioned Redis catalog. Configure
+the database and catalog version:
 
 ```yaml
 servers-registry:
@@ -86,16 +111,25 @@ Group creation explicitly binds the leader's current gameserver before members
 request placement. Active bindings refresh a 24-hour Redis expiry so abandoned
 group/map entries are eventually removed.
 
-Portal placement uses a related Redis binding:
+Instance placement uses related Redis bindings:
 
 ```text
-(realm ID, group ID, destination map ID) -> gameserver ID
+(realm ID, group ID, instance map ID) -> gameserver ID
+(realm ID, character GUID, instance map ID) -> gameserver ID
 ```
 
-For a solo player, character GUID replaces group ID. This keeps repeated solo
-entries on the same instance-owning core even if load changes. The binding is a
-core affinity, not an instance-ID allocation: the selected AzerothCore creates
-and manages its native instance ID when it processes the replayed trigger.
+The group key is canonical while grouped. Every grouped entry also refreshes
+the character key to the same core, so leaving or disbanding the group does not
+move an existing instance to another process. Group creation binds the leader's
+current instance core before members are routed. Repeated entries therefore
+return to the process holding the instance's in-memory creature state even if
+load changes.
+
+These bindings are core affinity rather than instance-ID allocation: the
+selected AzerothCore creates, reuses and persists its native instance ID when it
+processes the replayed trigger. If the owner core disappears, the registry may
+replace the stale affinity; database-persisted instance state survives, while
+ordinary unsaved in-memory creature state cannot survive a process failure.
 
 Population is intentionally approximate and uses the gameserver's existing
 active-connection metric. The minimal implementation does not track individual

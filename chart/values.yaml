@@ -54,6 +54,10 @@ servers_registry:
     # Change this when the deployed AzerothCore world data changes.
     version: default
     importEnabled: true
+  instancePool:
+    # Number of gameserver processes eligible for each dungeon/raid map.
+    # Redis affinity still gives every individual instance one owning process.
+    replicas: 1
   redis:
     # Leave empty for the chart-managed Redis endpoint. Multiple addresses use
     # Redis Cluster; addresses plus masterName use Redis Sentinel.
