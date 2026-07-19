@@ -1,0 +1,40 @@
+diff --git a/src/server/game/Handlers/MovementHandler.cpp b/src/server/game/Handlers/MovementHandler.cpp
+index 76bbb321b..ccb916ecf 100644
+--- a/src/server/game/Handlers/MovementHandler.cpp
++++ b/src/server/game/Handlers/MovementHandler.cpp
+@@ -81,8 +81,14 @@ void WorldSession::HandleMoveWorldportAckOpcode()
+     if (!GetPlayer()->m_InstanceValid && !mInstance)
+     {
+         GetPlayer()->m_InstanceValid = true;
+-        // pussywizard: m_InstanceValid can be false only by leaving a group in an instance => so remove temp binds that could not be removed because player was still on the map!
+-        if (!sInstanceSaveMgr->PlayerIsPermBoundToInstance(GetPlayer()->GetGUID(), oldMap->GetId(), oldMap->GetDifficulty()))
++        // A TC9 redirect reconstructs group state asynchronously on another
++        // worldserver. During that handoff m_InstanceValid can temporarily be
++        // false even though the player did not leave or reset the group. Keep
++        // the temporary bind in cluster mode so returning to the dungeon
++        // resolves the existing instance instead of consuming a new hourly
++        // instance slot.
++        if (!sToCloud9Sidecar->ClusterModeEnabled() &&
++            !sInstanceSaveMgr->PlayerIsPermBoundToInstance(GetPlayer()->GetGUID(), oldMap->GetId(), oldMap->GetDifficulty()))
+             sInstanceSaveMgr->PlayerUnbindInstance(GetPlayer()->GetGUID(), oldMap->GetId(), oldMap->GetDifficulty(), true);
+     }
+ 
+diff --git a/src/server/game/Instances/InstanceSaveMgr.cpp b/src/server/game/Instances/InstanceSaveMgr.cpp
+index 4ab09be68..4edb1bbf2 100644
+--- a/src/server/game/Instances/InstanceSaveMgr.cpp
++++ b/src/server/game/Instances/InstanceSaveMgr.cpp
+@@ -930,6 +930,14 @@ uint32 InstanceSaveMgr::PlayerGetDestinationInstanceId(Player* player, uint32 ma
+     {
+         if (InstancePlayerBind* ilb = PlayerGetBoundInstance(g->GetLeaderGUID(), mapid, difficulty)) // 2. leader temp/perm
+             return ilb->save->GetInstanceId();
++
++        // Group objects and their leader binds are replicated asynchronously
++        // between TC9 worldservers. If the leader bind has not reached this
++        // core yet, the returning player's own valid temporary bind is a safer
++        // affinity source than creating a new dungeon instance.
++        if (sToCloud9Sidecar->ClusterModeEnabled() && ipb)
++            return ipb->save->GetInstanceId();
++
+         return 0; // 3. in group, no leader bind
+     }
+     return ipb ? ipb->save->GetInstanceId() : 0; // 4. self temp
