@@ -138,7 +138,7 @@ func main() {
 
 	layerService := service.NewLayer(gameServersService, layerStore)
 	instancePoolService := service.NewInstancePool(gameServersService, portalStore, instanceMaps)
-	portalService := service.NewPortal(gameServersService, layerService, instancePoolService, portalStore)
+	portalService := service.NewPortal(layerService, instancePoolService, portalStore)
 	startupLayers := make(map[uint32]uint32, len(conf.Layering.Maps)+len(conf.Layering.MapSpecs))
 	for _, item := range conf.Layering.Maps {
 		startupLayers[item.MapID] = item.Layers

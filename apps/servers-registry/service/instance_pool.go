@@ -19,7 +19,11 @@ type InstancePool interface {
 }
 
 func (p *instancePoolService) GroupPlacementCounts(ctx context.Context, realmID uint32) (map[string]uint32, error) {
-	return p.store.GroupPlacementCounts(ctx, realmID)
+	mapIDs := make([]uint32, 0, len(p.maps))
+	for mapID := range p.maps {
+		mapIDs = append(mapIDs, mapID)
+	}
+	return p.store.GroupPlacementCounts(ctx, realmID, mapIDs)
 }
 
 type InstanceResetTarget struct {

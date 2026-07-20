@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -91,13 +92,25 @@ func (s *portalStoreStub) DeletePlacements(ctx context.Context, realm uint32, ow
 	}
 	return nil
 }
-func (s *portalStoreStub) GroupPlacementCounts(_ context.Context, realm uint32) (map[string]uint32, error) {
+func (s *portalStoreStub) GroupPlacementCounts(_ context.Context, realm uint32, instanceMapIDs []uint32) (map[string]uint32, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	prefix := fmt.Sprintf("%d:group:", realm)
+	instanceMaps := make(map[uint32]struct{}, len(instanceMapIDs))
+	for _, mapID := range instanceMapIDs {
+		instanceMaps[mapID] = struct{}{}
+	}
 	counts := make(map[string]uint32)
 	for key, serverID := range s.placements {
-		if strings.HasPrefix(key, prefix) {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		parts := strings.Split(key, ":")
+		mapID, err := strconv.ParseUint(parts[len(parts)-1], 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		if _, isInstance := instanceMaps[uint32(mapID)]; isInstance {
 			counts[serverID]++
 		}
 	}
@@ -117,7 +130,7 @@ func TestPortalSelectionIsSharedAcrossRegistryReplicas(t *testing.T) {
 	}}
 	layers := NewLayer(servers, layerStore)
 	instances := NewInstancePool(servers, portalStore, []uint32{389})
-	replicaA, replicaB := NewPortal(servers, layers, instances, portalStore), NewPortal(servers, layers, instances, portalStore)
+	replicaA, replicaB := NewPortal(layers, instances, portalStore), NewPortal(layers, instances, portalStore)
 
 	var first, second PortalSelection
 	var wg sync.WaitGroup
@@ -131,6 +144,27 @@ func TestPortalSelectionIsSharedAcrossRegistryReplicas(t *testing.T) {
 	require.Equal(t, "instance-b", first.Server.ID)
 }
 
+func TestNonInstancePortalUsesCanonicalGroupLayerBinding(t *testing.T) {
+	portalStore := newPortalStoreStub()
+	portalStore.destinations[100] = 1
+	// This is the stale duplicate binding the former portal implementation used.
+	portalStore.placements[portalPlacementTestKey(1, "group", 77, 1)] = "layer-1"
+	layerStore := newLayerStoreStub()
+	require.NoError(t, layerStore.SetConfiguration(context.Background(), 1, map[uint32]uint32{1: 2}))
+	require.NoError(t, layerStore.SetGroupBinding(context.Background(), 1, 77, 1, "layer-2"))
+	servers := &layerServersStub{servers: []repo.GameServer{
+		{ID: "layer-1", LayerID: 1},
+		{ID: "layer-2", LayerID: 2},
+	}}
+	portal := NewPortal(NewLayer(servers, layerStore), NewInstancePool(servers, portalStore, []uint32{389}), portalStore)
+
+	selection, err := portal.Select(context.Background(), 1, 10, 77, 100)
+	require.NoError(t, err)
+	require.Equal(t, PortalSelectionOK, selection.Status)
+	require.Equal(t, "layer-2", selection.Server.ID)
+	require.False(t, selection.InstancePlacement)
+}
+
 func TestPortalSelectionKeepsSoloCharacterOnOwningCore(t *testing.T) {
 	portalStore := newPortalStoreStub()
 	portalStore.destinations[2230] = 389
@@ -140,7 +174,7 @@ func TestPortalSelectionKeepsSoloCharacterOnOwningCore(t *testing.T) {
 		{ID: "instance-b", ActiveConnections: 2},
 	}}
 	instances := NewInstancePool(servers, portalStore, []uint32{389})
-	portal := NewPortal(servers, NewLayer(servers, layerStore), instances, portalStore)
+	portal := NewPortal(NewLayer(servers, layerStore), instances, portalStore)
 
 	first, err := portal.Select(context.Background(), 1, 10, 0, 2230)
 	require.NoError(t, err)
@@ -234,6 +268,7 @@ func TestInstancePoolCountsGroupPlacementsByOwningCore(t *testing.T) {
 	store.placements[portalPlacementTestKey(1, "group", 78, 389)] = "instance-a"
 	store.placements[portalPlacementTestKey(1, "group", 79, 33)] = "instance-b"
 	store.placements[portalPlacementTestKey(1, "character", 10, 33)] = "instance-b"
+	store.placements[portalPlacementTestKey(1, "group", 80, 1)] = "instance-b"
 	pool := NewInstancePool(&layerServersStub{}, store, []uint32{33, 389})
 
 	counts, err := pool.GroupPlacementCounts(context.Background(), 1)
@@ -245,7 +280,7 @@ func TestInstancePoolCountsGroupPlacementsByOwningCore(t *testing.T) {
 func TestPortalSelectionForUnknownTriggerDoesNotChooseServer(t *testing.T) {
 	store := newPortalStoreStub()
 	servers := &layerServersStub{}
-	selection, err := NewPortal(servers, NewLayer(servers, newLayerStoreStub()), NewInstancePool(servers, store, []uint32{389}), store).
+	selection, err := NewPortal(NewLayer(servers, newLayerStoreStub()), NewInstancePool(servers, store, []uint32{389}), store).
 		Select(context.Background(), 1, 10, 0, 999)
 	require.NoError(t, err)
 	require.Equal(t, PortalSelectionTriggerNotFound, selection.Status)

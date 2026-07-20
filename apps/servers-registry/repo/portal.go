@@ -16,5 +16,5 @@ type PortalStore interface {
 	SetPlacement(context.Context, uint32, string, uint64, uint32, string) error
 	DeletePlacement(context.Context, uint32, string, uint64, uint32) error
 	DeletePlacements(context.Context, uint32, string, []uint64, uint32) error
-	GroupPlacementCounts(context.Context, uint32) (map[string]uint32, error)
+	GroupPlacementCounts(context.Context, uint32, []uint32) (map[string]uint32, error)
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 
 	redis "github.com/redis/go-redis/v9"
@@ -175,7 +176,7 @@ func (s *portalRedisStore) DeletePlacements(ctx context.Context, realmID uint32,
 	return err
 }
 
-func (s *portalRedisStore) GroupPlacementCounts(ctx context.Context, realmID uint32) (map[string]uint32, error) {
+func (s *portalRedisStore) GroupPlacementCounts(ctx context.Context, realmID uint32, instanceMapIDs []uint32) (map[string]uint32, error) {
 	pattern := fmt.Sprintf("tc9:portal:{placement:%d:group:*:*}:server", realmID)
 	keys := make([]string, 0)
 	if cluster, ok := s.rdb.(*redis.ClusterClient); ok {
@@ -210,13 +211,28 @@ func (s *portalRedisStore) GroupPlacementCounts(ctx context.Context, realmID uin
 		return nil, err
 	}
 	counts := make(map[string]uint32)
-	for _, command := range commands {
+	instanceMaps := make(map[uint32]struct{}, len(instanceMapIDs))
+	for _, mapID := range instanceMapIDs {
+		instanceMaps[mapID] = struct{}{}
+	}
+	for index, command := range commands {
 		serverID, commandErr := command.Result()
 		if errors.Is(commandErr, redis.Nil) {
 			continue
 		}
 		if commandErr != nil {
 			return nil, commandErr
+		}
+		keyParts := strings.Split(strings.TrimSuffix(keys[index], "}:server"), ":")
+		if len(keyParts) == 0 {
+			continue
+		}
+		mapID, parseErr := strconv.ParseUint(keyParts[len(keyParts)-1], 10, 32)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		if _, isInstance := instanceMaps[uint32(mapID)]; !isInstance {
+			continue
 		}
 		counts[serverID]++
 	}

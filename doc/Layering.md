@@ -11,8 +11,10 @@ player assignment cache.
 
 The registry also owns portal placement. The gateway sends the area-trigger ID,
 realm, character and group to `SelectGameServerForAreaTrigger`. The registry
-resolves the destination map from a versioned Redis catalog and atomically binds
-the group and character to an eligible gameserver. The gateway
+resolves the destination map from a versioned Redis catalog. Instance
+destinations atomically bind the group and character to an eligible instance
+core; non-instance destinations use the same canonical per-map layer selector
+as every other outdoor placement. The gateway
 redirects first and replays the original area-trigger packet only after the
 destination gameserver has accepted the player. Therefore only that gameserver
 executes the portal and creates or reuses the native AzerothCore instance.
@@ -125,6 +127,12 @@ move an existing instance to another process. Group creation binds the leader's
 current instance core before members are routed. Repeated entries therefore
 return to the process holding the instance's in-memory creature state even if
 load changes.
+
+These portal bindings are only for maps in the imported instance catalog.
+Outdoor exits never create a second portal-owned layer binding; they use the
+canonical `(realm ID, group ID, map ID)` layer binding above. Instance-pool
+placement counts likewise ignore legacy or malformed bindings for non-instance
+maps.
 
 Instance affinities do not use a fixed expiry: expiring a raid affinity while
 its native lock is still valid can route the next entry to the wrong core. A
