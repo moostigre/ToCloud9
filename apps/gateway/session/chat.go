@@ -280,7 +280,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		if err != nil {
 			return err
 		}
-		s.SendSysMessage(fmt.Sprintf("Layering overview: %d configured outdoor maps.", len(configuration.Maps)))
+		s.SendSysMessage(fmt.Sprintf("Layering overview: %d configured non-instance maps.", len(configuration.Maps)))
 		layerCores := make(map[string]*pbServ.GetLayerStatsResponse_Layer)
 		for _, configuredMap := range configuration.Maps {
 			stats, statsErr := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
@@ -321,9 +321,9 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			cores = append(cores, core)
 		}
 		sort.Slice(cores, func(i, j int) bool { return cores[i].LayerID < cores[j].LayerID })
-		s.SendSysMessage(fmt.Sprintf("Outdoor layer cores: %d.", len(cores)))
+		s.SendSysMessage(fmt.Sprintf("Layer populations: %d layers.", len(cores)))
 		for _, core := range cores {
-			message := fmt.Sprintf("  Layer %d core: approximately %d total connected players across all maps", core.LayerID, core.Players)
+			message := fmt.Sprintf("  Layer %d: approximately %d connected players", core.LayerID, core.Players)
 			if s.showGameserverConnChangeToClient {
 				message += fmt.Sprintf("; gameserver %s (%s)", core.GameServerID, core.Address)
 			}
@@ -342,7 +342,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			if core.GameServerID == s.currentGameServerID && containsLayerMapID(core.MapIDs, s.character.Map) {
 				marker = " (you)"
 			}
-			message := fmt.Sprintf("  Core %d: %d group/raid instance placements, approximately %d total connected players across all maps, %d supported instance maps%s", index+1, core.GroupPlacements, core.Players, len(core.MapIDs), marker)
+			message := fmt.Sprintf("  Core %d: %d group/raid instance placements, %d supported instance maps%s", index+1, core.GroupPlacements, len(core.MapIDs), marker)
 			if s.showGameserverConnChangeToClient {
 				message += fmt.Sprintf("; gameserver %s (%s)", core.GameServerID, core.Address)
 			}
