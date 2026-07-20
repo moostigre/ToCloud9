@@ -202,6 +202,43 @@ func (_m *ServersRegistryServiceClient) GatewaysForRealms(ctx context.Context, i
 	return r0, r1
 }
 
+// GetInstancePoolStats provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) GetInstancePoolStats(ctx context.Context, in *pb.GetInstancePoolStatsRequest, opts ...grpc.CallOption) (*pb.GetInstancePoolStatsResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetInstancePoolStats")
+	}
+
+	var r0 *pb.GetInstancePoolStatsResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetInstancePoolStatsRequest, ...grpc.CallOption) (*pb.GetInstancePoolStatsResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetInstancePoolStatsRequest, ...grpc.CallOption) *pb.GetInstancePoolStatsResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.GetInstancePoolStatsResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.GetInstancePoolStatsRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetInstanceResetTargets provides a mock function with given fields: ctx, in, opts
 func (_m *ServersRegistryServiceClient) GetInstanceResetTargets(ctx context.Context, in *pb.GetInstanceResetTargetsRequest, opts ...grpc.CallOption) (*pb.GetInstanceResetTargetsResponse, error) {
 	_va := make([]interface{}, len(opts))

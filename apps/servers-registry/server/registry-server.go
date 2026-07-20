@@ -427,6 +427,32 @@ func (s *serversRegistry) GetLayerStats(ctx context.Context, request *pb.GetLaye
 	return response, nil
 }
 
+func (s *serversRegistry) GetInstancePoolStats(ctx context.Context, request *pb.GetInstancePoolStatsRequest) (*pb.GetInstancePoolStatsResponse, error) {
+	servers, err := s.gService.ListForRealm(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+	response := &pb.GetInstancePoolStatsResponse{Api: ver}
+	for _, gameServer := range servers {
+		mapIDs := make([]uint32, 0)
+		for _, mapID := range gameServer.AssignedMapsToHandle {
+			if s.instances.IsInstanceMap(mapID) {
+				mapIDs = append(mapIDs, mapID)
+			}
+		}
+		if len(mapIDs) == 0 {
+			continue
+		}
+		sort.Slice(mapIDs, func(i, j int) bool { return mapIDs[i] < mapIDs[j] })
+		response.Cores = append(response.Cores, &pb.GetInstancePoolStatsResponse_Core{
+			GameServerID: gameServer.ID, Address: gameServer.Address,
+			Players: gameServer.ActiveConnections, MapIDs: mapIDs,
+		})
+	}
+	sort.Slice(response.Cores, func(i, j int) bool { return response.Cores[i].GameServerID < response.Cores[j].GameServerID })
+	return response, nil
+}
+
 func removePortFromAddress(address string) string {
 	for i := len(address) - 1; i >= 0; i-- {
 		if address[i] == ':' {

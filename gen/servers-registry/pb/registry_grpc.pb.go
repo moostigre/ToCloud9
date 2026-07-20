@@ -33,6 +33,7 @@ const (
 	ServersRegistryService_GetMapLayerConfiguration_FullMethodName           = "/v1.ServersRegistryService/GetMapLayerConfiguration"
 	ServersRegistryService_UpdateMapLayerConfiguration_FullMethodName        = "/v1.ServersRegistryService/UpdateMapLayerConfiguration"
 	ServersRegistryService_GetLayerStats_FullMethodName                      = "/v1.ServersRegistryService/GetLayerStats"
+	ServersRegistryService_GetInstancePoolStats_FullMethodName               = "/v1.ServersRegistryService/GetInstancePoolStats"
 	ServersRegistryService_RegisterGateway_FullMethodName                    = "/v1.ServersRegistryService/RegisterGateway"
 	ServersRegistryService_GatewaysForRealms_FullMethodName                  = "/v1.ServersRegistryService/GatewaysForRealms"
 	ServersRegistryService_ListGatewaysForRealm_FullMethodName               = "/v1.ServersRegistryService/ListGatewaysForRealm"
@@ -56,6 +57,7 @@ type ServersRegistryServiceClient interface {
 	GetMapLayerConfiguration(ctx context.Context, in *GetMapLayerConfigurationRequest, opts ...grpc.CallOption) (*GetMapLayerConfigurationResponse, error)
 	UpdateMapLayerConfiguration(ctx context.Context, in *UpdateMapLayerConfigurationRequest, opts ...grpc.CallOption) (*UpdateMapLayerConfigurationResponse, error)
 	GetLayerStats(ctx context.Context, in *GetLayerStatsRequest, opts ...grpc.CallOption) (*GetLayerStatsResponse, error)
+	GetInstancePoolStats(ctx context.Context, in *GetInstancePoolStatsRequest, opts ...grpc.CallOption) (*GetInstancePoolStatsResponse, error)
 	RegisterGateway(ctx context.Context, in *RegisterGatewayRequest, opts ...grpc.CallOption) (*RegisterGatewayResponse, error)
 	GatewaysForRealms(ctx context.Context, in *GatewaysForRealmsRequest, opts ...grpc.CallOption) (*GatewaysForRealmsResponse, error)
 	ListGatewaysForRealm(ctx context.Context, in *ListGatewaysForRealmRequest, opts ...grpc.CallOption) (*ListGatewaysForRealmResponse, error)
@@ -195,6 +197,15 @@ func (c *serversRegistryServiceClient) GetLayerStats(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *serversRegistryServiceClient) GetInstancePoolStats(ctx context.Context, in *GetInstancePoolStatsRequest, opts ...grpc.CallOption) (*GetInstancePoolStatsResponse, error) {
+	out := new(GetInstancePoolStatsResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_GetInstancePoolStats_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serversRegistryServiceClient) RegisterGateway(ctx context.Context, in *RegisterGatewayRequest, opts ...grpc.CallOption) (*RegisterGatewayResponse, error) {
 	out := new(RegisterGatewayResponse)
 	err := c.cc.Invoke(ctx, ServersRegistryService_RegisterGateway_FullMethodName, in, out, opts...)
@@ -240,6 +251,7 @@ type ServersRegistryServiceServer interface {
 	GetMapLayerConfiguration(context.Context, *GetMapLayerConfigurationRequest) (*GetMapLayerConfigurationResponse, error)
 	UpdateMapLayerConfiguration(context.Context, *UpdateMapLayerConfigurationRequest) (*UpdateMapLayerConfigurationResponse, error)
 	GetLayerStats(context.Context, *GetLayerStatsRequest) (*GetLayerStatsResponse, error)
+	GetInstancePoolStats(context.Context, *GetInstancePoolStatsRequest) (*GetInstancePoolStatsResponse, error)
 	RegisterGateway(context.Context, *RegisterGatewayRequest) (*RegisterGatewayResponse, error)
 	GatewaysForRealms(context.Context, *GatewaysForRealmsRequest) (*GatewaysForRealmsResponse, error)
 	ListGatewaysForRealm(context.Context, *ListGatewaysForRealmRequest) (*ListGatewaysForRealmResponse, error)
@@ -291,6 +303,9 @@ func (UnimplementedServersRegistryServiceServer) UpdateMapLayerConfiguration(con
 }
 func (UnimplementedServersRegistryServiceServer) GetLayerStats(context.Context, *GetLayerStatsRequest) (*GetLayerStatsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetLayerStats not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) GetInstancePoolStats(context.Context, *GetInstancePoolStatsRequest) (*GetInstancePoolStatsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstancePoolStats not implemented")
 }
 func (UnimplementedServersRegistryServiceServer) RegisterGateway(context.Context, *RegisterGatewayRequest) (*RegisterGatewayResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterGateway not implemented")
@@ -567,6 +582,24 @@ func _ServersRegistryService_GetLayerStats_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ServersRegistryService_GetInstancePoolStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstancePoolStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).GetInstancePoolStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_GetInstancePoolStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).GetInstancePoolStats(ctx, req.(*GetInstancePoolStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ServersRegistryService_RegisterGateway_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterGatewayRequest)
 	if err := dec(in); err != nil {
@@ -683,6 +716,10 @@ var ServersRegistryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetLayerStats",
 			Handler:    _ServersRegistryService_GetLayerStats_Handler,
+		},
+		{
+			MethodName: "GetInstancePoolStats",
+			Handler:    _ServersRegistryService_GetInstancePoolStats_Handler,
 		},
 		{
 			MethodName: "RegisterGateway",

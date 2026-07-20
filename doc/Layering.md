@@ -205,7 +205,9 @@ session affinity between services.
 
 ## Test commands
 
-- `.layer` displays the current map configuration and approximate populations.
+- `.layer` displays every configured outdoor map and layer population, followed
+  by every instance-pool core and its assigned instance maps. Gameserver IDs and
+  addresses are included only when gateway server-detail messages are enabled.
 - `.layer switch <number>` redirects the current character to a selected layer.
 
 These commands use the normal redirect path. There is no visibility cache,

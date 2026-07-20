@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -273,23 +274,58 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		return nil
 	}
 	if len(args) == 1 {
-		stats, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
-			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
+		configuration, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
 		})
 		if err != nil {
 			return err
 		}
-		if stats.ConfiguredLayers == 0 {
-			s.SendSysMessage("This instance does not use layers.")
-			return nil
-		}
-		s.SendSysMessage(fmt.Sprintf("Map %d has %d configured layers; you are on layer %d.", s.character.Map, stats.ConfiguredLayers, s.currentLayerID))
-		for _, layer := range stats.Layers {
+		s.SendSysMessage(fmt.Sprintf("Layering overview: %d configured outdoor maps.", len(configuration.Maps)))
+		for _, configuredMap := range configuration.Maps {
+			stats, statsErr := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
+				Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: configuredMap.MapID,
+			})
+			if statsErr != nil {
+				return statsErr
+			}
 			marker := ""
-			if layer.LayerID == s.currentLayerID {
+			if configuredMap.MapID == s.character.Map {
+				marker = fmt.Sprintf(" (current map, layer %d)", s.currentLayerID)
+			}
+			s.SendSysMessage(fmt.Sprintf("Map %d: %d configured layers%s", configuredMap.MapID, configuredMap.LayerCount, marker))
+			for _, layer := range stats.Layers {
+				layerMarker := ""
+				if configuredMap.MapID == s.character.Map && layer.LayerID == s.currentLayerID {
+					layerMarker = " (you)"
+				}
+				message := fmt.Sprintf("  Layer %d: approximately %d players%s", layer.LayerID, layer.Players, layerMarker)
+				if s.showGameserverConnChangeToClient {
+					message += fmt.Sprintf("; gameserver %s (%s)", layer.GameServerID, layer.Address)
+				}
+				s.SendSysMessage(message)
+			}
+		}
+
+		instanceStats, err := s.serversRegistryClient.GetInstancePoolStats(ctx, &pbServ.GetInstancePoolStatsRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
+		})
+		if err != nil {
+			return err
+		}
+		s.SendSysMessage(fmt.Sprintf("Instance pool: %d configured cores.", len(instanceStats.Cores)))
+		for index, core := range instanceStats.Cores {
+			marker := ""
+			if core.GameServerID == s.currentGameServerID {
 				marker = " (you)"
 			}
-			s.SendSysMessage(fmt.Sprintf("Layer %d: approximately %d players, gameserver %s%s", layer.LayerID, layer.Players, layer.GameServerID, marker))
+			message := fmt.Sprintf("  Core %d: approximately %d connected players, %d assigned instance maps%s", index+1, core.Players, len(core.MapIDs), marker)
+			if s.showGameserverConnChangeToClient {
+				message += fmt.Sprintf("; gameserver %s (%s)", core.GameServerID, core.Address)
+			}
+			s.SendSysMessage(message)
+			for _, maps := range layerMapIDChunks(core.MapIDs, 12) {
+				s.SendSysMessage(fmt.Sprintf("    Maps: %s", maps))
+			}
 		}
 		return nil
 	}
@@ -323,6 +359,27 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		return err
 	}
 	return nil
+}
+
+func layerMapIDChunks(mapIDs []uint32, chunkSize int) []string {
+	if chunkSize <= 0 || len(mapIDs) == 0 {
+		return nil
+	}
+	mapIDs = append([]uint32(nil), mapIDs...)
+	sort.Slice(mapIDs, func(i, j int) bool { return mapIDs[i] < mapIDs[j] })
+	chunks := make([]string, 0, (len(mapIDs)+chunkSize-1)/chunkSize)
+	for start := 0; start < len(mapIDs); start += chunkSize {
+		end := start + chunkSize
+		if end > len(mapIDs) {
+			end = len(mapIDs)
+		}
+		parts := make([]string, 0, end-start)
+		for _, mapID := range mapIDs[start:end] {
+			parts = append(parts, strconv.FormatUint(uint64(mapID), 10))
+		}
+		chunks = append(chunks, strings.Join(parts, ", "))
+	}
+	return chunks
 }
 
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {

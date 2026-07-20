@@ -54,6 +54,10 @@ func (s *serversRegistryDebugLoggerMiddleware) GetLayerStats(ctx context.Context
 	return s.realService.GetLayerStats(ctx, request)
 }
 
+func (s *serversRegistryDebugLoggerMiddleware) GetInstancePoolStats(ctx context.Context, request *pb.GetInstancePoolStatsRequest) (*pb.GetInstancePoolStatsResponse, error) {
+	return s.realService.GetInstancePoolStats(ctx, request)
+}
+
 func (s *serversRegistryDebugLoggerMiddleware) AvailableGameServersForMapAndRealm(ctx context.Context, request *pb.AvailableGameServersForMapAndRealmRequest) (resp *pb.AvailableGameServersForMapAndRealmResponse, err error) {
 	defer func(t time.Time) {
 		event := s.logger.Debug().
