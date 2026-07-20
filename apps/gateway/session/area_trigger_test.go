@@ -104,7 +104,7 @@ func TestTimeSyncReplaysPendingAreaTrigger(t *testing.T) {
 	worldSocket.AssertExpectations(t)
 }
 
-func TestSuccessfulInstanceResetReassignsSharedPlacement(t *testing.T) {
+func TestSuccessfulInstanceResetFinalizesEveryPartyMemberPlacement(t *testing.T) {
 	gameSocket := &socketMock.Socket{}
 	registry := &servMock.ServersRegistryServiceClient{}
 	s := &GameSession{
@@ -112,11 +112,19 @@ func TestSuccessfulInstanceResetReassignsSharedPlacement(t *testing.T) {
 		gameSocket:            gameSocket,
 		serversRegistryClient: registry,
 		currentGroupID:        77,
+		currentGameServerID:   "current",
+		pendingInstanceReset: &instanceResetHandoff{
+			returnServer: &pbServ.Server{ID: "current"},
+			owners:       []instanceResetOwner{{server: &pbServ.Server{ID: "owner"}, maps: map[uint32]bool{389: false}}},
+			memberGUIDs:  []uint64{10, 11},
+			groupID:      77,
+		},
 	}
 	p := packet.NewWriterWithSize(packet.SMsgInstanceReset, 4).Uint32(389).ToPacket()
-	registry.On("ReassignInstanceAfterReset", mock.Anything, mock.MatchedBy(func(req *pbServ.ReassignInstanceAfterResetRequest) bool {
-		return req.RealmID == 0 && req.CharacterGUID == 10 && req.GroupID == 77 && req.MapID == 389
-	})).Return(&pbServ.ReassignInstanceAfterResetResponse{}, nil).Once()
+	registry.On("FinalizeInstanceReset", mock.Anything, mock.MatchedBy(func(req *pbServ.FinalizeInstanceResetRequest) bool {
+		return req.RealmID == 0 && req.CharacterGUID == 10 && req.GroupID == 77 && req.MapID == 389 &&
+			len(req.MemberGUIDs) == 2 && req.MemberGUIDs[1] == 11
+	})).Return(&pbServ.FinalizeInstanceResetResponse{}, nil).Once()
 	gameSocket.On("SendPacket", p).Once()
 
 	require.NoError(t, s.InterceptInstanceReset(context.Background(), p))

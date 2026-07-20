@@ -12,7 +12,7 @@ import (
 type resetRPCServerStub struct {
 	pb.UnimplementedServersRegistryServiceServer
 	targetsCalled  bool
-	reassignCalled bool
+	finalizeCalled bool
 }
 
 func (s *resetRPCServerStub) GetInstanceResetTargets(context.Context, *pb.GetInstanceResetTargetsRequest) (*pb.GetInstanceResetTargetsResponse, error) {
@@ -20,9 +20,9 @@ func (s *resetRPCServerStub) GetInstanceResetTargets(context.Context, *pb.GetIns
 	return &pb.GetInstanceResetTargetsResponse{}, nil
 }
 
-func (s *resetRPCServerStub) ReassignInstanceAfterReset(context.Context, *pb.ReassignInstanceAfterResetRequest) (*pb.ReassignInstanceAfterResetResponse, error) {
-	s.reassignCalled = true
-	return &pb.ReassignInstanceAfterResetResponse{}, nil
+func (s *resetRPCServerStub) FinalizeInstanceReset(context.Context, *pb.FinalizeInstanceResetRequest) (*pb.FinalizeInstanceResetResponse, error) {
+	s.finalizeCalled = true
+	return &pb.FinalizeInstanceResetResponse{}, nil
 }
 
 func TestDebugMiddlewareDelegatesInstanceResetRPCs(t *testing.T) {
@@ -31,8 +31,8 @@ func TestDebugMiddlewareDelegatesInstanceResetRPCs(t *testing.T) {
 
 	_, err := middleware.GetInstanceResetTargets(context.Background(), &pb.GetInstanceResetTargetsRequest{})
 	require.NoError(t, err)
-	_, err = middleware.ReassignInstanceAfterReset(context.Background(), &pb.ReassignInstanceAfterResetRequest{})
+	_, err = middleware.FinalizeInstanceReset(context.Background(), &pb.FinalizeInstanceResetRequest{})
 	require.NoError(t, err)
 	require.True(t, real.targetsCalled)
-	require.True(t, real.reassignCalled)
+	require.True(t, real.finalizeCalled)
 }

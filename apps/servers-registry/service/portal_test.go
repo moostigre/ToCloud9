@@ -39,6 +39,19 @@ func (s *portalStoreStub) Placement(_ context.Context, realm uint32, ownerType s
 	defer s.mu.Unlock()
 	return s.placements[portalPlacementTestKey(realm, ownerType, ownerID, mapID)], nil
 }
+func (s *portalStoreStub) Placements(ctx context.Context, realm uint32, ownerType string, ownerID uint64, mapIDs []uint32) (map[uint32]string, error) {
+	result := make(map[uint32]string, len(mapIDs))
+	for _, mapID := range mapIDs {
+		value, err := s.Placement(ctx, realm, ownerType, ownerID, mapID)
+		if err != nil {
+			return nil, err
+		}
+		if value != "" {
+			result[mapID] = value
+		}
+	}
+	return result, nil
+}
 func (s *portalStoreStub) BindPlacement(_ context.Context, realm uint32, ownerType string, ownerID uint64, mapID uint32, server string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -61,6 +74,20 @@ func (s *portalStoreStub) SetPlacement(_ context.Context, realm uint32, ownerTyp
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.placements[portalPlacementTestKey(realm, ownerType, ownerID, mapID)] = server
+	return nil
+}
+func (s *portalStoreStub) DeletePlacement(_ context.Context, realm uint32, ownerType string, ownerID uint64, mapID uint32) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.placements, portalPlacementTestKey(realm, ownerType, ownerID, mapID))
+	return nil
+}
+func (s *portalStoreStub) DeletePlacements(ctx context.Context, realm uint32, ownerType string, ownerIDs []uint64, mapID uint32) error {
+	for _, ownerID := range ownerIDs {
+		if err := s.DeletePlacement(ctx, realm, ownerType, ownerID, mapID); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 func portalPlacementTestKey(realm uint32, ownerType string, ownerID uint64, mapID uint32) string {
@@ -140,7 +167,7 @@ func TestNewInstanceGroupInheritsExistingCharacterOwner(t *testing.T) {
 	require.Equal(t, "instance-b", store.placements[portalPlacementTestKey(1, "group", 77, 389)])
 }
 
-func TestInstanceResetReassignsPlacementAwayFromPreviousCore(t *testing.T) {
+func TestInstanceResetClearsPlacementForEveryPartyMember(t *testing.T) {
 	store := newPortalStoreStub()
 	store.placements[portalPlacementTestKey(1, "group", 77, 389)] = "instance-a"
 	store.placements[portalPlacementTestKey(1, "character", 10, 389)] = "instance-a"
@@ -150,9 +177,11 @@ func TestInstanceResetReassignsPlacementAwayFromPreviousCore(t *testing.T) {
 	}}
 	pool := NewInstancePool(servers, store, []uint32{389})
 
-	require.NoError(t, pool.ReassignAfterReset(context.Background(), 1, 10, 77, 389))
-	require.Equal(t, "instance-b", store.placements[portalPlacementTestKey(1, "group", 77, 389)])
-	require.Equal(t, "instance-b", store.placements[portalPlacementTestKey(1, "character", 10, 389)])
+	store.placements[portalPlacementTestKey(1, "character", 11, 389)] = "instance-a"
+	require.NoError(t, pool.FinalizeReset(context.Background(), 1, 10, 77, 389, []uint64{10, 11}))
+	require.Empty(t, store.placements[portalPlacementTestKey(1, "group", 77, 389)])
+	require.Empty(t, store.placements[portalPlacementTestKey(1, "character", 10, 389)])
+	require.Empty(t, store.placements[portalPlacementTestKey(1, "character", 11, 389)])
 }
 
 func TestInstanceResetTargetsResolveSharedRedisOwner(t *testing.T) {
@@ -166,6 +195,24 @@ func TestInstanceResetTargetsResolveSharedRedisOwner(t *testing.T) {
 	require.Len(t, targets, 1)
 	require.Equal(t, uint32(389), targets[0].MapID)
 	require.Equal(t, "instance-b", targets[0].Server.ID)
+}
+
+func TestInstanceResetTargetsIncludeEveryOwnedInstanceMap(t *testing.T) {
+	store := newPortalStoreStub()
+	store.placements[portalPlacementTestKey(1, "group", 77, 33)] = "instance-a"
+	store.placements[portalPlacementTestKey(1, "group", 77, 389)] = "instance-b"
+	servers := &layerServersStub{servers: []repo.GameServer{
+		{ID: "instance-a", Address: "a:9601"},
+		{ID: "instance-b", Address: "b:9601"},
+	}}
+	pool := NewInstancePool(servers, store, []uint32{33, 389})
+
+	targets, err := pool.ResetTargets(context.Background(), 1, 10, 77)
+	require.NoError(t, err)
+	require.Len(t, targets, 2)
+	owners := map[uint32]string{targets[0].MapID: targets[0].Server.ID, targets[1].MapID: targets[1].Server.ID}
+	require.Equal(t, "instance-a", owners[33])
+	require.Equal(t, "instance-b", owners[389])
 }
 
 func TestPortalSelectionForUnknownTriggerDoesNotChooseServer(t *testing.T) {

@@ -13,7 +13,7 @@ type InstancePool interface {
 	IsInstanceMap(uint32) bool
 	Select(context.Context, uint32, uint64, uint32, uint32) (PortalSelection, error)
 	BindGroup(context.Context, uint32, uint32, uint32, string) error
-	ReassignAfterReset(context.Context, uint32, uint64, uint32, uint32) error
+	FinalizeReset(context.Context, uint32, uint64, uint32, uint32, []uint64) error
 	ResetTargets(context.Context, uint32, uint64, uint32) ([]InstanceResetTarget, error)
 }
 
@@ -22,44 +22,19 @@ type InstanceResetTarget struct {
 	Server repo.GameServer
 }
 
-func (p *instancePoolService) ReassignAfterReset(ctx context.Context, realmID uint32, characterGUID uint64, groupID, mapID uint32) error {
+func (p *instancePoolService) FinalizeReset(ctx context.Context, realmID uint32, characterGUID uint64, groupID, mapID uint32, memberGUIDs []uint64) error {
 	if characterGUID == 0 || !p.IsInstanceMap(mapID) {
 		return fmt.Errorf("valid character and instance map are required")
 	}
-	servers, err := p.servers.AvailableForMapAndRealm(ctx, mapID, realmID, false)
-	if err != nil {
-		return err
-	}
-	if len(servers) == 0 {
-		return fmt.Errorf("no gameserver is available for instance map %d", mapID)
-	}
-
-	ownerType, ownerID := "character", characterGUID
 	if groupID != 0 {
-		ownerType, ownerID = "group", uint64(groupID)
-	}
-	previous, err := p.store.Placement(ctx, realmID, ownerType, ownerID, mapID)
-	if err != nil {
-		return err
-	}
-	if previous == "" && groupID != 0 {
-		previous, err = p.store.Placement(ctx, realmID, "character", characterGUID, mapID)
-		if err != nil {
+		if err := p.store.DeletePlacement(ctx, realmID, "group", uint64(groupID), mapID); err != nil {
 			return err
 		}
 	}
-
-	candidates := make([]repo.GameServer, 0, len(servers))
-	for _, server := range servers {
-		if len(servers) == 1 || server.ID != previous {
-			candidates = append(candidates, server)
-		}
+	if len(memberGUIDs) == 0 {
+		memberGUIDs = []uint64{characterGUID}
 	}
-	selected := leastLoaded(candidates)
-	if err := p.store.SetPlacement(ctx, realmID, ownerType, ownerID, mapID, selected.ID); err != nil {
-		return err
-	}
-	return p.store.SetPlacement(ctx, realmID, "character", characterGUID, mapID, selected.ID)
+	return p.store.DeletePlacements(ctx, realmID, "character", memberGUIDs, mapID)
 }
 
 type instancePoolService struct {
@@ -82,22 +57,32 @@ func (p *instancePoolService) IsInstanceMap(mapID uint32) bool {
 }
 
 func (p *instancePoolService) ResetTargets(ctx context.Context, realmID uint32, characterGUID uint64, groupID uint32) ([]InstanceResetTarget, error) {
+	mapIDs := make([]uint32, 0, len(p.maps))
+	for mapID := range p.maps {
+		mapIDs = append(mapIDs, mapID)
+	}
 	ownerType, ownerID := "character", characterGUID
 	if groupID != 0 {
 		ownerType, ownerID = "group", uint64(groupID)
 	}
-	targets := make([]InstanceResetTarget, 0)
-	for mapID := range p.maps {
-		serverID, err := p.store.Placement(ctx, realmID, ownerType, ownerID, mapID)
-		if err != nil {
-			return nil, err
+	placements, err := p.store.Placements(ctx, realmID, ownerType, ownerID, mapIDs)
+	if err != nil {
+		return nil, err
+	}
+	if groupID != 0 {
+		characterPlacements, placementErr := p.store.Placements(ctx, realmID, "character", characterGUID, mapIDs)
+		if placementErr != nil {
+			return nil, placementErr
 		}
-		if serverID == "" && groupID != 0 {
-			serverID, err = p.store.Placement(ctx, realmID, "character", characterGUID, mapID)
-			if err != nil {
-				return nil, err
+		for mapID, serverID := range characterPlacements {
+			if placements[mapID] == "" {
+				placements[mapID] = serverID
 			}
 		}
+	}
+	targets := make([]InstanceResetTarget, 0, len(placements))
+	for _, mapID := range mapIDs {
+		serverID := placements[mapID]
 		if serverID == "" {
 			continue
 		}

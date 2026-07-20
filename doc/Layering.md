@@ -54,8 +54,9 @@ The registry imports the authoritative instance-map list from
 gameserver processes are assigned each dungeon and raid map:
 
 ```yaml
-servers-registry:
-  instancePoolReplicas: 2
+servers_registry:
+  instancePool:
+    replicas: 2
 ```
 
 This creates capacity, not instance layers. A core may host many different
@@ -108,8 +109,8 @@ or reads this Redis binding:
 When the bound gameserver is no longer available for the map, an atomic
 compare-and-set moves the binding to the least-loaded available gameserver.
 Group creation explicitly binds the leader's current gameserver before members
-request placement. Active bindings refresh a 24-hour Redis expiry so abandoned
-group/map entries are eventually removed.
+request placement. Active outdoor-layer bindings refresh a 24-hour Redis expiry
+so abandoned group/map entries are eventually removed.
 
 Instance placement uses related Redis bindings:
 
@@ -125,11 +126,43 @@ current instance core before members are routed. Repeated entries therefore
 return to the process holding the instance's in-memory creature state even if
 load changes.
 
+Instance affinities do not use a fixed expiry: expiring a raid affinity while
+its native lock is still valid can route the next entry to the wrong core. A
+successful native reset explicitly removes them. If an owner disappears,
+normal selection atomically replaces the stale binding.
+
 These bindings are core affinity rather than instance-ID allocation: the
 selected AzerothCore creates, reuses and persists its native instance ID when it
 processes the replayed trigger. If the owner core disappears, the registry may
 replace the stale affinity; database-persisted instance state survives, while
 ordinary unsaved in-memory creature state cannot survive a process failure.
+
+### Native reset handoff
+
+The gateway intercepts the client's native reset request only long enough to
+deliver it to every gameserver that owns one of the party's canonical group
+instance affinities. It snapshots party membership, verifies that the requester
+is the leader, groups the map affinities by owning core, and visits those cores
+in a deterministic sequence. Each owner receives
+AzerothCore's unmodified reset opcode through the player's authenticated world
+session. The gateway waits for AzerothCore's success or failure packet before
+continuing and returns the player to the original outdoor gameserver at the end.
+
+Only a successful native reset invokes `FinalizeInstanceReset`. That idempotent
+registry operation deletes the map's group affinity and every snapshotted party
+member's character affinity. The next portal entry performs a fresh placement
+and AzerothCore creates a fresh native instance. Failed resets retain all
+affinities. A non-responsive owner aborts the handoff after a bounded timeout
+and returns the player outdoors, so a dead gameserver cannot strand the client.
+The player can safely repeat the idempotent operation after recovery.
+
+This is a routing handoff, not a second instance lifecycle system. The registry
+never allocates an instance ID and the gateway never edits an AzerothCore lock
+or save. Instance-pool cores must accept the temporary authenticated handoff on
+the player's outdoor map. Operationally dedicated instance cores should use
+`LAYER_ID=0` and advertise the required outdoor control maps as well as their
+instance maps; configured outdoor layers remain assigned to non-zero layer
+cores.
 
 Population is intentionally approximate and uses the gameserver's existing
 active-connection metric. The minimal implementation does not track individual
@@ -137,12 +170,14 @@ players in the registry.
 
 ## Redis availability and registry scaling
 
-Registry processes are stateless and can be horizontally replicated. A single
-Redis pod is suitable for development but is a production single point of
-failure. Configure either Redis/Valkey Sentinel (one writable primary with
-replicas and quorum failover) or Redis Cluster (sharded primaries with
-replicas). Do not point registry replicas at independent, uncoordinated Redis
-servers because they can produce conflicting placements.
+Registry processes are stateless and can be horizontally replicated. The Helm
+chart runs three registry replicas by default, spreads them across nodes when
+possible, and protects them during voluntary disruptions. The chart-managed
+standalone Redis remains a development default and is a production single point
+of failure. Production deployments must configure either Redis/Valkey Sentinel
+(one writable primary with replicas and quorum failover) or Redis Cluster
+(sharded primaries with replicas). Do not point registry replicas at independent,
+uncoordinated Redis servers because they can produce conflicting placements.
 
 `REDIS_URL` retains standalone compatibility. For HA deployments use:
 
@@ -155,8 +190,18 @@ REDIS_DB=0
 ```
 
 Placement keys use Redis hash tags so each atomic compare-and-set remains in a
-single Redis Cluster slot. During Redis failover placement is temporarily
-unavailable and fails closed; existing players and instances continue running.
+single Redis Cluster slot. Registry scans visit every cluster primary and bulk
+reads use slot-aware pipelines rather than cross-slot `MGET`. Party reset
+cleanup is idempotent: if failover interrupts a multi-key cleanup, retrying
+safely converges every member key. During Redis failover new placement and reset
+routing are temporarily unavailable and fail closed; existing players and
+instances continue running.
+
+The reset sequence is transient per connected game session and creates no
+cluster-wide coordinator. If that gateway dies, its client reconnects through
+the normal recovery path and can safely repeat the reset against shared Redis
+state. Multiple gateways and registry replicas can operate concurrently without
+session affinity between services.
 
 ## Test commands
 

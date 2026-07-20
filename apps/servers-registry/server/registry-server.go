@@ -56,11 +56,11 @@ func (s *serversRegistry) SelectGameServerForAreaTrigger(ctx context.Context, re
 	return response, nil
 }
 
-func (s *serversRegistry) ReassignInstanceAfterReset(ctx context.Context, request *pb.ReassignInstanceAfterResetRequest) (*pb.ReassignInstanceAfterResetResponse, error) {
-	if err := s.instances.ReassignAfterReset(ctx, request.RealmID, request.CharacterGUID, request.GroupID, request.MapID); err != nil {
+func (s *serversRegistry) FinalizeInstanceReset(ctx context.Context, request *pb.FinalizeInstanceResetRequest) (*pb.FinalizeInstanceResetResponse, error) {
+	if err := s.instances.FinalizeReset(ctx, request.RealmID, request.CharacterGUID, request.GroupID, request.MapID, request.MemberGUIDs); err != nil {
 		return nil, err
 	}
-	return &pb.ReassignInstanceAfterResetResponse{Api: ver}, nil
+	return &pb.FinalizeInstanceResetResponse{Api: ver}, nil
 }
 
 func (s *serversRegistry) GetInstanceResetTargets(ctx context.Context, request *pb.GetInstanceResetTargetsRequest) (*pb.GetInstanceResetTargetsResponse, error) {

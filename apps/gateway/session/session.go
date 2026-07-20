@@ -632,6 +632,7 @@ func (s *GameSession) onLoggedOut() {
 	if s.character == nil {
 		return
 	}
+	s.pendingInstanceReset = nil
 
 	err := s.eventsProducer.CharacterLoggedOut(&events.GWEventCharacterLoggedOutPayload{
 		RealmID:     root.RealmID,

@@ -7,12 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	redis "github.com/redis/go-redis/v9"
 )
-
-const portalPlacementTTL = 24 * time.Hour
 
 type portalRedisStore struct {
 	rdb            redis.UniversalClient
@@ -112,15 +109,34 @@ func (s *portalRedisStore) Placement(ctx context.Context, realmID uint32, ownerT
 	if errors.Is(err, redis.Nil) {
 		return "", nil
 	}
-	if err == nil {
-		_ = s.rdb.Expire(ctx, key, portalPlacementTTL).Err()
-	}
 	return value, err
+}
+
+func (s *portalRedisStore) Placements(ctx context.Context, realmID uint32, ownerType string, ownerID uint64, mapIDs []uint32) (map[uint32]string, error) {
+	pipe := s.rdb.Pipeline()
+	commands := make(map[uint32]*redis.StringCmd, len(mapIDs))
+	for _, mapID := range mapIDs {
+		commands[mapID] = pipe.Get(ctx, s.placementKey(realmID, ownerType, ownerID, mapID))
+	}
+	_, err := pipe.Exec(ctx)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+	placements := make(map[uint32]string, len(commands))
+	for mapID, command := range commands {
+		value, commandErr := command.Result()
+		if commandErr == nil {
+			placements[mapID] = value
+		} else if !errors.Is(commandErr, redis.Nil) {
+			return nil, commandErr
+		}
+	}
+	return placements, nil
 }
 
 func (s *portalRedisStore) BindPlacement(ctx context.Context, realmID uint32, ownerType string, ownerID uint64, mapID uint32, serverID string) (string, error) {
 	key := s.placementKey(realmID, ownerType, ownerID, mapID)
-	created, err := s.rdb.SetNX(ctx, key, serverID, portalPlacementTTL).Result()
+	created, err := s.rdb.SetNX(ctx, key, serverID, 0).Result()
 	if err != nil {
 		return "", err
 	}
@@ -134,15 +150,28 @@ func (s *portalRedisStore) ReplacePlacement(ctx context.Context, realmID uint32,
 	const compareAndSet = `
 local current = redis.call('GET', KEYS[1])
 if current == ARGV[1] then
-  redis.call('SET', KEYS[1], ARGV[2], 'PX', ARGV[3])
+  redis.call('SET', KEYS[1], ARGV[2])
   return ARGV[2]
 end
 return current or ''`
-	return s.rdb.Eval(ctx, compareAndSet, []string{s.placementKey(realmID, ownerType, ownerID, mapID)}, staleServerID, serverID, portalPlacementTTL.Milliseconds()).Text()
+	return s.rdb.Eval(ctx, compareAndSet, []string{s.placementKey(realmID, ownerType, ownerID, mapID)}, staleServerID, serverID).Text()
 }
 
 func (s *portalRedisStore) SetPlacement(ctx context.Context, realmID uint32, ownerType string, ownerID uint64, mapID uint32, serverID string) error {
-	return s.rdb.Set(ctx, s.placementKey(realmID, ownerType, ownerID, mapID), serverID, portalPlacementTTL).Err()
+	return s.rdb.Set(ctx, s.placementKey(realmID, ownerType, ownerID, mapID), serverID, 0).Err()
+}
+
+func (s *portalRedisStore) DeletePlacement(ctx context.Context, realmID uint32, ownerType string, ownerID uint64, mapID uint32) error {
+	return s.rdb.Del(ctx, s.placementKey(realmID, ownerType, ownerID, mapID)).Err()
+}
+
+func (s *portalRedisStore) DeletePlacements(ctx context.Context, realmID uint32, ownerType string, ownerIDs []uint64, mapID uint32) error {
+	pipe := s.rdb.Pipeline()
+	for _, ownerID := range ownerIDs {
+		pipe.Del(ctx, s.placementKey(realmID, ownerType, ownerID, mapID))
+	}
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
 func (s *portalRedisStore) catalogKey() string {

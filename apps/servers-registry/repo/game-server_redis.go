@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"strconv"
 	"strings"
+	"sync"
 
 	redis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
@@ -113,43 +114,50 @@ func (g *gameServerRedisRepo) ListOfCrossRealms(ctx context.Context) ([]GameServ
 
 func (g *gameServerRedisRepo) ListAll(ctx context.Context) ([]GameServer, error) {
 	pattern := "ws:*"
+	var keys []string
+	if cluster, ok := g.rdb.(*redis.ClusterClient); ok {
+		var mu sync.Mutex
+		err := cluster.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
+			masterKeys, err := scanGameServerKeys(ctx, client, pattern)
+			if err != nil {
+				return err
+			}
+			mu.Lock()
+			keys = append(keys, masterKeys...)
+			mu.Unlock()
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		keys, err = scanGameServerKeys(ctx, g.rdb, pattern)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return g.gameServersForKeys(ctx, keys)
+}
 
+type redisScanner interface {
+	Scan(context.Context, uint64, string, int64) *redis.ScanCmd
+}
+
+func scanGameServerKeys(ctx context.Context, client redisScanner, pattern string) ([]string, error) {
 	var cursor uint64
 	var keys []string
-
-	// Use SCAN to find all keys matching the pattern
 	for {
-		// Scan with the current cursor value
-		var newKeys []string
-		var err error
-		newKeys, cursor, err = g.rdb.Scan(ctx, cursor, pattern, 10).Result()
+		newKeys, next, err := client.Scan(ctx, cursor, pattern, 100).Result()
 		if err != nil {
 			return nil, err
 		}
-
 		keys = append(keys, newKeys...)
-
+		cursor = next
 		if cursor == 0 {
-			break
+			return keys, nil
 		}
 	}
-
-	// Retrieve values for all matching keys
-	result := make([]GameServer, 0, len(keys))
-	for _, key := range keys {
-		value, err := g.rdb.Get(ctx, key).Result()
-		if err != nil {
-			continue
-		}
-
-		obj := &GameServer{}
-		if err := json.Unmarshal([]byte(value), obj); err != nil {
-			return nil, err
-		}
-		result = append(result, *obj)
-	}
-
-	return result, nil
 }
 
 func (g *gameServerRedisRepo) listForRealmOrCrossRealm(ctx context.Context, realmID uint32, isCrossRealm bool) ([]GameServer, error) {
@@ -162,20 +170,31 @@ func (g *gameServerRedisRepo) listForRealmOrCrossRealm(ctx context.Context, real
 		return []GameServer{}, nil
 	}
 
-	mGetRes := g.rdb.MGet(ctx, res.Val()...)
-	if mGetRes.Err() != nil {
-		return nil, mGetRes.Err()
-	}
+	return g.gameServersForKeys(ctx, res.Val())
+}
 
-	resInterface := mGetRes.Val()
-	result := make([]GameServer, 0, len(resInterface))
-	for i := range resInterface {
-		if resInterface[i] == nil {
-			log.Warn().Str("key", res.Val()[i]).Msg("fetched nil game server from set")
+func (g *gameServerRedisRepo) gameServersForKeys(ctx context.Context, keys []string) ([]GameServer, error) {
+	pipe := g.rdb.Pipeline()
+	commands := make([]*redis.StringCmd, len(keys))
+	for i, key := range keys {
+		commands[i] = pipe.Get(ctx, key)
+	}
+	_, err := pipe.Exec(ctx)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+	result := make([]GameServer, 0, len(commands))
+	for i, command := range commands {
+		value, commandErr := command.Result()
+		if errors.Is(commandErr, redis.Nil) {
+			log.Warn().Str("key", keys[i]).Msg("fetched nil game server from set")
 			continue
 		}
+		if commandErr != nil {
+			return nil, commandErr
+		}
 		obj := &GameServer{}
-		if err := json.Unmarshal([]byte(resInterface[i].(string)), obj); err != nil {
+		if err := json.Unmarshal([]byte(value), obj); err != nil {
 			return nil, err
 		}
 		result = append(result, *obj)

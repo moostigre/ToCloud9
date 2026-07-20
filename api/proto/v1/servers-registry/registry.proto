@@ -12,7 +12,7 @@ service ServersRegistryService {
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
   rpc SelectGameServerForPlayer(SelectGameServerForPlayerRequest) returns (SelectGameServerForPlayerResponse);
   rpc SelectGameServerForAreaTrigger(SelectGameServerForAreaTriggerRequest) returns (SelectGameServerForAreaTriggerResponse);
-  rpc ReassignInstanceAfterReset(ReassignInstanceAfterResetRequest) returns (ReassignInstanceAfterResetResponse);
+  rpc FinalizeInstanceReset(FinalizeInstanceResetRequest) returns (FinalizeInstanceResetResponse);
   rpc GetInstanceResetTargets(GetInstanceResetTargetsRequest) returns (GetInstanceResetTargetsResponse);
   rpc BindGroupToGameServer(BindGroupToGameServerRequest) returns (BindGroupToGameServerResponse);
   rpc GetMapLayerConfiguration(GetMapLayerConfigurationRequest) returns (GetMapLayerConfigurationResponse);
@@ -186,17 +186,17 @@ message SelectGameServerForAreaTriggerResponse {
   bool instancePlacement = 6;
 }
 
-// ReassignInstanceAfterReset moves the Redis placement away from the core
-// which may still hold the reset instance in memory. It is called only after
-// AzerothCore confirms a successful reset for the map.
-message ReassignInstanceAfterResetRequest {
+// FinalizeInstanceReset removes the party and character affinities after
+// AzerothCore confirms a successful native reset for the map.
+message FinalizeInstanceResetRequest {
   string api = 1;
   uint32 realmID = 2;
   uint64 characterGUID = 3;
   uint32 groupID = 4;
   uint32 mapID = 5;
+  repeated uint64 memberGUIDs = 6;
 }
-message ReassignInstanceAfterResetResponse { string api = 1; }
+message FinalizeInstanceResetResponse { string api = 1; }
 
 message GetInstanceResetTargetsRequest {
   string api = 1;

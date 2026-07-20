@@ -103,20 +103,28 @@ func (g *gatewayRedisRepo) ListByRealm(ctx context.Context, realmID uint32) ([]G
 		return []GatewayServer{}, nil
 	}
 
-	mGetRes := g.rdb.MGet(ctx, res.Val()...)
-	if mGetRes.Err() != nil {
-		return nil, mGetRes.Err()
+	keys := res.Val()
+	pipe := g.rdb.Pipeline()
+	commands := make([]*redis.StringCmd, len(keys))
+	for i, key := range keys {
+		commands[i] = pipe.Get(ctx, key)
 	}
-
-	resInterface := mGetRes.Val()
-	result := make([]GatewayServer, 0, len(resInterface))
-	for i := range resInterface {
-		if resInterface[i] == nil {
+	_, err := pipe.Exec(ctx)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+	result := make([]GatewayServer, 0, len(commands))
+	for i, command := range commands {
+		value, commandErr := command.Result()
+		if errors.Is(commandErr, redis.Nil) {
 			log.Warn().Str("key", res.Val()[i]).Msg("fetched nil gateway from set")
 			continue
 		}
+		if commandErr != nil {
+			return nil, commandErr
+		}
 		obj := &GatewayServer{}
-		if err := json.Unmarshal([]byte(resInterface[i].(string)), obj); err != nil {
+		if err := json.Unmarshal([]byte(value), obj); err != nil {
 			return nil, err
 		}
 		result = append(result, *obj)

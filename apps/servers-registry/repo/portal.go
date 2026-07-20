@@ -10,7 +10,10 @@ type PortalStore interface {
 	InstanceMaps(context.Context) ([]uint32, error)
 	ReplaceInstanceMaps(context.Context, []uint32) error
 	Placement(context.Context, uint32, string, uint64, uint32) (string, error)
+	Placements(context.Context, uint32, string, uint64, []uint32) (map[uint32]string, error)
 	BindPlacement(context.Context, uint32, string, uint64, uint32, string) (string, error)
 	ReplacePlacement(context.Context, uint32, string, uint64, uint32, string, string) (string, error)
 	SetPlacement(context.Context, uint32, string, uint64, uint32, string) error
+	DeletePlacement(context.Context, uint32, string, uint64, uint32) error
+	DeletePlacements(context.Context, uint32, string, []uint64, uint32) error
 }

@@ -38,8 +38,8 @@ func (s *serversRegistryDebugLoggerMiddleware) SelectGameServerForAreaTrigger(ct
 func (s *serversRegistryDebugLoggerMiddleware) GetInstanceResetTargets(ctx context.Context, request *pb.GetInstanceResetTargetsRequest) (*pb.GetInstanceResetTargetsResponse, error) {
 	return s.realService.GetInstanceResetTargets(ctx, request)
 }
-func (s *serversRegistryDebugLoggerMiddleware) ReassignInstanceAfterReset(ctx context.Context, request *pb.ReassignInstanceAfterResetRequest) (*pb.ReassignInstanceAfterResetResponse, error) {
-	return s.realService.ReassignInstanceAfterReset(ctx, request)
+func (s *serversRegistryDebugLoggerMiddleware) FinalizeInstanceReset(ctx context.Context, request *pb.FinalizeInstanceResetRequest) (*pb.FinalizeInstanceResetResponse, error) {
+	return s.realService.FinalizeInstanceReset(ctx, request)
 }
 func (s *serversRegistryDebugLoggerMiddleware) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
 	return s.realService.BindGroupToGameServer(ctx, request)

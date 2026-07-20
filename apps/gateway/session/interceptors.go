@@ -383,8 +383,7 @@ func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Pa
 		s.pendingAreaTrigger = nil
 	}
 	if s.pendingInstanceReset != nil && !s.pendingInstanceReset.requestSent && s.worldSocket != nil {
-		s.worldSocket.SendPacket(s.pendingInstanceReset.request)
-		s.pendingInstanceReset.requestSent = true
+		s.sendPendingInstanceReset()
 	}
 	return nil
 }
@@ -394,35 +393,16 @@ func (s *GameSession) InterceptInstanceResetFailed(ctx context.Context, p *packe
 	_ = reader.Uint32() // failure reason
 	mapID := reader.Uint32()
 	s.gameSocket.SendPacket(p)
-	if handoff := s.pendingInstanceReset; handoff != nil && handoff.mapID == mapID {
-		s.pendingInstanceReset = nil
-		return s.returnFromInstanceReset(ctx, handoff.returnServer)
-	}
-	return nil
+	return s.completeInstanceResetMap(ctx, mapID, false)
 }
 
-// InterceptInstanceReset updates shared placement only after AzerothCore has
-// confirmed that the native instance reset succeeded. The former owner may
-// retain the now-empty DungeonMap in memory, so the next entry is assigned to
-// another instance core instead of reviving that stale copy.
+// InterceptInstanceReset clears shared affinity only after AzerothCore has
+// confirmed that the native instance reset succeeded. The next portal entry
+// can then create a fresh placement on any available instance owner.
 func (s *GameSession) InterceptInstanceReset(ctx context.Context, p *packet.Packet) error {
 	mapID := p.Reader().Uint32()
-	_, err := s.serversRegistryClient.ReassignInstanceAfterReset(ctx, &pbServ.ReassignInstanceAfterResetRequest{
-		Api:           root.SupportedServerRegistryVer,
-		RealmID:       root.RealmID,
-		CharacterGUID: s.character.GUID,
-		GroupID:       s.groupIDForPlayer(ctx, s.character.GUID),
-		MapID:         mapID,
-	})
-	if err != nil {
-		s.logger.Error().Err(err).Uint32("mapID", mapID).Msg("failed to reassign instance placement after reset")
-	}
 	s.gameSocket.SendPacket(p)
-	if handoff := s.pendingInstanceReset; handoff != nil && handoff.mapID == mapID {
-		s.pendingInstanceReset = nil
-		return s.returnFromInstanceReset(ctx, handoff.returnServer)
-	}
-	return nil
+	return s.completeInstanceResetMap(ctx, mapID, true)
 }
 
 func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *packet.Packet) error {

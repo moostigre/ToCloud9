@@ -38,7 +38,11 @@ databases:
   external_db_port: "3306"
 
 servers_registry:
-  replicaCount: 1
+  # Registry replicas are stateless; Redis is their shared source of truth.
+  replicaCount: 3
+  disruptionBudget:
+    enabled: true
+    minAvailable: 2
   image:
     repository: ghcr.io/walkline/servers-registry
     pullPolicy: Always

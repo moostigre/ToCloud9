@@ -14,6 +14,13 @@ spec:
       labels:
         app: {{ $fullname }}-servers-registry
     spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: {{ $fullname }}-servers-registry
       containers:
       - name: {{ .Release.Name }}-servers-registry
         image: "{{ .Values.servers_registry.image.repository }}:{{ .Values.servers_registry.image.tag }}"
@@ -86,3 +93,15 @@ spec:
     protocol: TCP
   selector:
     app: {{ $fullname }}-servers-registry
+{{- if .Values.servers_registry.disruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $fullname }}-servers-registry
+spec:
+  minAvailable: {{ .Values.servers_registry.disruptionBudget.minAvailable | int }}
+  selector:
+    matchLabels:
+      app: {{ $fullname }}-servers-registry
+{{- end }}
