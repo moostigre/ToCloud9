@@ -205,12 +205,14 @@ session affinity between services.
 
 ## Test commands
 
-- `.layer` displays every configured non-instance map and its layer availability,
+- `.layer` displays the character's current numbered layer or instance-pool core.
+- `.layer config` displays every configured non-instance map and its layer availability,
   followed by one population line per numbered layer and every instance-pool
   core with its supported-map and group/raid placement counts. A layer population
   is the connection count of the gameserver hosting that numbered layer; it is
   not presented as a per-map population. Gameserver IDs and addresses are
   included only when gateway server-detail messages are enabled.
+- `.layer help` displays the in-game command reference.
 - `.layer switch <number>` redirects the current character to a selected layer.
 
 These commands use the normal redirect path. There is no visibility cache,

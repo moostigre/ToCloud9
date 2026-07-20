@@ -274,6 +274,49 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		return nil
 	}
 	if len(args) == 1 {
+		return s.handleLayerStatus(ctx)
+	}
+	if len(args) == 2 {
+		switch strings.ToLower(args[1]) {
+		case "config":
+			return s.handleLayerConfigOrSwitch(ctx, []string{".layer"})
+		case "help":
+			s.sendLayerHelp()
+			return nil
+		}
+	}
+	return s.handleLayerConfigOrSwitch(ctx, args)
+}
+
+func (s *GameSession) handleLayerStatus(ctx context.Context) error {
+	instanceStats, err := s.serversRegistryClient.GetInstancePoolStats(ctx, &pbServ.GetInstancePoolStatsRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
+	})
+	if err != nil {
+		return err
+	}
+	if coreNumber := currentInstanceCoreNumber(instanceStats.Cores, s.currentGameServerID, s.character.Map); coreNumber != 0 {
+		s.SendSysMessage(fmt.Sprintf("You are on instance core %d.", coreNumber))
+		return nil
+	}
+	if s.currentLayerID != 0 {
+		s.SendSysMessage(fmt.Sprintf("You are on layer %d.", s.currentLayerID))
+		return nil
+	}
+	s.SendSysMessage("You are on a map that is not currently layered.")
+	return nil
+}
+
+func (s *GameSession) sendLayerHelp() {
+	s.SendSysMessage("Layer command help:")
+	s.SendSysMessage("  .layer - show your current layer or instance core")
+	s.SendSysMessage("  .layer config - show the complete layer and instance-pool configuration")
+	s.SendSysMessage("  .layer switch <number> - switch to a layer available for your current map")
+	s.SendSysMessage("  .layer help - show this command reference")
+}
+
+func (s *GameSession) handleLayerConfigOrSwitch(ctx context.Context, args []string) error {
+	if len(args) == 1 {
 		configuration, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{
 			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
 		})
@@ -351,7 +394,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		return nil
 	}
 	if len(args) != 3 || strings.ToLower(args[1]) != "switch" {
-		s.SendSysMessage("Usage: .layer | .layer switch <number>")
+		s.sendLayerHelp()
 		return nil
 	}
 	layerID, err := strconv.ParseUint(args[2], 10, 32)
@@ -385,6 +428,15 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 func containsLayerMapID(mapIDs []uint32, wanted uint32) bool {
 	index := sort.Search(len(mapIDs), func(i int) bool { return mapIDs[i] >= wanted })
 	return index < len(mapIDs) && mapIDs[index] == wanted
+}
+
+func currentInstanceCoreNumber(cores []*pbServ.GetInstancePoolStatsResponse_Core, gameServerID string, mapID uint32) int {
+	for index, core := range cores {
+		if core.GameServerID == gameServerID && containsLayerMapID(core.MapIDs, mapID) {
+			return index + 1
+		}
+	}
+	return 0
 }
 
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {
