@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 
 	redis "github.com/redis/go-redis/v9"
 )
@@ -172,6 +173,54 @@ func (s *portalRedisStore) DeletePlacements(ctx context.Context, realmID uint32,
 	}
 	_, err := pipe.Exec(ctx)
 	return err
+}
+
+func (s *portalRedisStore) GroupPlacementCounts(ctx context.Context, realmID uint32) (map[string]uint32, error) {
+	pattern := fmt.Sprintf("tc9:portal:{placement:%d:group:*:*}:server", realmID)
+	keys := make([]string, 0)
+	if cluster, ok := s.rdb.(*redis.ClusterClient); ok {
+		var mu sync.Mutex
+		err := cluster.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
+			masterKeys, err := scanGameServerKeys(ctx, client, pattern)
+			if err != nil {
+				return err
+			}
+			mu.Lock()
+			keys = append(keys, masterKeys...)
+			mu.Unlock()
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		keys, err = scanGameServerKeys(ctx, s.rdb, pattern)
+		if err != nil {
+			return nil, err
+		}
+	}
+	pipe := s.rdb.Pipeline()
+	commands := make([]*redis.StringCmd, len(keys))
+	for index, key := range keys {
+		commands[index] = pipe.Get(ctx, key)
+	}
+	_, err := pipe.Exec(ctx)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return nil, err
+	}
+	counts := make(map[string]uint32)
+	for _, command := range commands {
+		serverID, commandErr := command.Result()
+		if errors.Is(commandErr, redis.Nil) {
+			continue
+		}
+		if commandErr != nil {
+			return nil, commandErr
+		}
+		counts[serverID]++
+	}
+	return counts, nil
 }
 
 func (s *portalRedisStore) catalogKey() string {

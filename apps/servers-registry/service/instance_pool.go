@@ -15,6 +15,11 @@ type InstancePool interface {
 	BindGroup(context.Context, uint32, uint32, uint32, string) error
 	FinalizeReset(context.Context, uint32, uint64, uint32, uint32, []uint64) error
 	ResetTargets(context.Context, uint32, uint64, uint32) ([]InstanceResetTarget, error)
+	GroupPlacementCounts(context.Context, uint32) (map[string]uint32, error)
+}
+
+func (p *instancePoolService) GroupPlacementCounts(ctx context.Context, realmID uint32) (map[string]uint32, error) {
+	return p.store.GroupPlacementCounts(ctx, realmID)
 }
 
 type InstanceResetTarget struct {

@@ -252,6 +252,7 @@ message GetInstancePoolStatsResponse {
     string address = 2;
     uint32 players = 3;
     repeated uint32 mapIDs = 4;
+    uint32 groupPlacements = 5;
   }
   string api = 1;
   repeated Core cores = 2;

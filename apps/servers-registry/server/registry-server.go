@@ -432,6 +432,10 @@ func (s *serversRegistry) GetInstancePoolStats(ctx context.Context, request *pb.
 	if err != nil {
 		return nil, err
 	}
+	groupPlacements, err := s.instances.GroupPlacementCounts(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
 	response := &pb.GetInstancePoolStatsResponse{Api: ver}
 	for _, gameServer := range servers {
 		mapIDs := make([]uint32, 0)
@@ -446,7 +450,7 @@ func (s *serversRegistry) GetInstancePoolStats(ctx context.Context, request *pb.
 		sort.Slice(mapIDs, func(i, j int) bool { return mapIDs[i] < mapIDs[j] })
 		response.Cores = append(response.Cores, &pb.GetInstancePoolStatsResponse_Core{
 			GameServerID: gameServer.ID, Address: gameServer.Address,
-			Players: gameServer.ActiveConnections, MapIDs: mapIDs,
+			Players: gameServer.ActiveConnections, MapIDs: mapIDs, GroupPlacements: groupPlacements[gameServer.ID],
 		})
 	}
 	sort.Slice(response.Cores, func(i, j int) bool { return response.Cores[i].GameServerID < response.Cores[j].GameServerID })

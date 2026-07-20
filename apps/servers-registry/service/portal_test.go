@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -89,6 +90,18 @@ func (s *portalStoreStub) DeletePlacements(ctx context.Context, realm uint32, ow
 		}
 	}
 	return nil
+}
+func (s *portalStoreStub) GroupPlacementCounts(_ context.Context, realm uint32) (map[string]uint32, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prefix := fmt.Sprintf("%d:group:", realm)
+	counts := make(map[string]uint32)
+	for key, serverID := range s.placements {
+		if strings.HasPrefix(key, prefix) {
+			counts[serverID]++
+		}
+	}
+	return counts, nil
 }
 func portalPlacementTestKey(realm uint32, ownerType string, ownerID uint64, mapID uint32) string {
 	return fmt.Sprintf("%d:%s:%d:%d", realm, ownerType, ownerID, mapID)
@@ -213,6 +226,20 @@ func TestInstanceResetTargetsIncludeEveryOwnedInstanceMap(t *testing.T) {
 	owners := map[uint32]string{targets[0].MapID: targets[0].Server.ID, targets[1].MapID: targets[1].Server.ID}
 	require.Equal(t, "instance-a", owners[33])
 	require.Equal(t, "instance-b", owners[389])
+}
+
+func TestInstancePoolCountsGroupPlacementsByOwningCore(t *testing.T) {
+	store := newPortalStoreStub()
+	store.placements[portalPlacementTestKey(1, "group", 77, 33)] = "instance-a"
+	store.placements[portalPlacementTestKey(1, "group", 78, 389)] = "instance-a"
+	store.placements[portalPlacementTestKey(1, "group", 79, 33)] = "instance-b"
+	store.placements[portalPlacementTestKey(1, "character", 10, 33)] = "instance-b"
+	pool := NewInstancePool(&layerServersStub{}, store, []uint32{33, 389})
+
+	counts, err := pool.GroupPlacementCounts(context.Background(), 1)
+	require.NoError(t, err)
+	require.Equal(t, uint32(2), counts["instance-a"])
+	require.Equal(t, uint32(1), counts["instance-b"])
 }
 
 func TestPortalSelectionForUnknownTriggerDoesNotChooseServer(t *testing.T) {

@@ -207,7 +207,7 @@ session affinity between services.
 
 - `.layer` displays every configured outdoor map and its layer availability,
   followed by unique gameserver connection totals and every instance-pool core
-  with its assigned maps. The connection metric is core-wide and is never
+  with its supported-map count and group/raid placement count. The connection metric is core-wide and is never
   presented as a per-map population. Gameserver IDs and addresses are included
   only when gateway server-detail messages are enabled.
 - `.layer switch <number>` redirects the current character to a selected layer.

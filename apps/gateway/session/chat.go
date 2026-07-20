@@ -342,14 +342,11 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			if core.GameServerID == s.currentGameServerID && containsLayerMapID(core.MapIDs, s.character.Map) {
 				marker = " (you)"
 			}
-			message := fmt.Sprintf("  Core %d: approximately %d total connected players across all maps, %d assigned instance maps%s", index+1, core.Players, len(core.MapIDs), marker)
+			message := fmt.Sprintf("  Core %d: %d group/raid instance placements, approximately %d total connected players across all maps, %d supported instance maps%s", index+1, core.GroupPlacements, core.Players, len(core.MapIDs), marker)
 			if s.showGameserverConnChangeToClient {
 				message += fmt.Sprintf("; gameserver %s (%s)", core.GameServerID, core.Address)
 			}
 			s.SendSysMessage(message)
-			for _, maps := range layerMapIDChunks(core.MapIDs, 12) {
-				s.SendSysMessage(fmt.Sprintf("    Maps: %s", maps))
-			}
 		}
 		return nil
 	}
@@ -388,27 +385,6 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 func containsLayerMapID(mapIDs []uint32, wanted uint32) bool {
 	index := sort.Search(len(mapIDs), func(i int) bool { return mapIDs[i] >= wanted })
 	return index < len(mapIDs) && mapIDs[index] == wanted
-}
-
-func layerMapIDChunks(mapIDs []uint32, chunkSize int) []string {
-	if chunkSize <= 0 || len(mapIDs) == 0 {
-		return nil
-	}
-	mapIDs = append([]uint32(nil), mapIDs...)
-	sort.Slice(mapIDs, func(i, j int) bool { return mapIDs[i] < mapIDs[j] })
-	chunks := make([]string, 0, (len(mapIDs)+chunkSize-1)/chunkSize)
-	for start := 0; start < len(mapIDs); start += chunkSize {
-		end := start + chunkSize
-		if end > len(mapIDs) {
-			end = len(mapIDs)
-		}
-		parts := make([]string, 0, end-start)
-		for _, mapID := range mapIDs[start:end] {
-			parts = append(parts, strconv.FormatUint(uint64(mapID), 10))
-		}
-		chunks = append(chunks, strings.Join(parts, ", "))
-	}
-	return chunks
 }
 
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {
