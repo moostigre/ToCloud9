@@ -11,3 +11,8 @@ func TestLayerMapIDChunksSortsAndPreservesEveryMap(t *testing.T) {
 
 	require.Equal(t, []string{"0, 1", "33, 530", "571"}, chunks)
 }
+
+func TestContainsLayerMapID(t *testing.T) {
+	require.True(t, containsLayerMapID([]uint32{30, 33, 389}, 33))
+	require.False(t, containsLayerMapID([]uint32{30, 33, 389}, 1))
+}

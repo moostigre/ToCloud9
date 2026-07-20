@@ -281,6 +281,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			return err
 		}
 		s.SendSysMessage(fmt.Sprintf("Layering overview: %d configured outdoor maps.", len(configuration.Maps)))
+		layerCores := make(map[string]*pbServ.GetLayerStatsResponse_Layer)
 		for _, configuredMap := range configuration.Maps {
 			stats, statsErr := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
 				Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: configuredMap.MapID,
@@ -293,17 +294,40 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 				marker = fmt.Sprintf(" (current map, layer %d)", s.currentLayerID)
 			}
 			s.SendSysMessage(fmt.Sprintf("Map %d: %d configured layers%s", configuredMap.MapID, configuredMap.LayerCount, marker))
+			layersByID := make(map[uint32]*pbServ.GetLayerStatsResponse_Layer, len(stats.Layers))
 			for _, layer := range stats.Layers {
+				layersByID[layer.LayerID] = layer
+				layerCores[layer.GameServerID] = layer
+			}
+			for layerID := uint32(1); layerID <= configuredMap.LayerCount; layerID++ {
 				layerMarker := ""
-				if configuredMap.MapID == s.character.Map && layer.LayerID == s.currentLayerID {
+				if configuredMap.MapID == s.character.Map && layerID == s.currentLayerID {
 					layerMarker = " (you)"
 				}
-				message := fmt.Sprintf("  Layer %d: approximately %d players%s", layer.LayerID, layer.Players, layerMarker)
+				layer := layersByID[layerID]
+				if layer == nil {
+					s.SendSysMessage(fmt.Sprintf("  Layer %d: unavailable%s", layerID, layerMarker))
+					continue
+				}
+				message := fmt.Sprintf("  Layer %d: available%s", layerID, layerMarker)
 				if s.showGameserverConnChangeToClient {
 					message += fmt.Sprintf("; gameserver %s (%s)", layer.GameServerID, layer.Address)
 				}
 				s.SendSysMessage(message)
 			}
+		}
+		cores := make([]*pbServ.GetLayerStatsResponse_Layer, 0, len(layerCores))
+		for _, core := range layerCores {
+			cores = append(cores, core)
+		}
+		sort.Slice(cores, func(i, j int) bool { return cores[i].LayerID < cores[j].LayerID })
+		s.SendSysMessage(fmt.Sprintf("Outdoor layer cores: %d.", len(cores)))
+		for _, core := range cores {
+			message := fmt.Sprintf("  Layer %d core: approximately %d total connected players across all maps", core.LayerID, core.Players)
+			if s.showGameserverConnChangeToClient {
+				message += fmt.Sprintf("; gameserver %s (%s)", core.GameServerID, core.Address)
+			}
+			s.SendSysMessage(message)
 		}
 
 		instanceStats, err := s.serversRegistryClient.GetInstancePoolStats(ctx, &pbServ.GetInstancePoolStatsRequest{
@@ -315,10 +339,10 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		s.SendSysMessage(fmt.Sprintf("Instance pool: %d configured cores.", len(instanceStats.Cores)))
 		for index, core := range instanceStats.Cores {
 			marker := ""
-			if core.GameServerID == s.currentGameServerID {
+			if core.GameServerID == s.currentGameServerID && containsLayerMapID(core.MapIDs, s.character.Map) {
 				marker = " (you)"
 			}
-			message := fmt.Sprintf("  Core %d: approximately %d connected players, %d assigned instance maps%s", index+1, core.Players, len(core.MapIDs), marker)
+			message := fmt.Sprintf("  Core %d: approximately %d total connected players across all maps, %d assigned instance maps%s", index+1, core.Players, len(core.MapIDs), marker)
 			if s.showGameserverConnChangeToClient {
 				message += fmt.Sprintf("; gameserver %s (%s)", core.GameServerID, core.Address)
 			}
@@ -359,6 +383,11 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		return err
 	}
 	return nil
+}
+
+func containsLayerMapID(mapIDs []uint32, wanted uint32) bool {
+	index := sort.Search(len(mapIDs), func(i int) bool { return mapIDs[i] >= wanted })
+	return index < len(mapIDs) && mapIDs[index] == wanted
 }
 
 func layerMapIDChunks(mapIDs []uint32, chunkSize int) []string {

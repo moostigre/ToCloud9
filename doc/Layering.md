@@ -205,9 +205,11 @@ session affinity between services.
 
 ## Test commands
 
-- `.layer` displays every configured outdoor map and layer population, followed
-  by every instance-pool core and its assigned instance maps. Gameserver IDs and
-  addresses are included only when gateway server-detail messages are enabled.
+- `.layer` displays every configured outdoor map and its layer availability,
+  followed by unique gameserver connection totals and every instance-pool core
+  with its assigned maps. The connection metric is core-wide and is never
+  presented as a per-map population. Gameserver IDs and addresses are included
+  only when gateway server-detail messages are enabled.
 - `.layer switch <number>` redirects the current character to a selected layer.
 
 These commands use the normal redirect path. There is no visibility cache,
