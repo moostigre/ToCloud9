@@ -83,7 +83,6 @@ func LoadConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	gateway.RealmID = uint32(c.Root.RealmID)
 
 	return &c.Root, nil

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/walkline/ToCloud9/apps/charserver/repo"
 	"github.com/walkline/ToCloud9/apps/charserver/service"
@@ -22,16 +24,33 @@ type CharServer struct {
 	itemsTemplate  repo.ItemsTemplate
 	onlineChars    repo.CharactersOnline
 	friendsService service.FriendsService
+	loginLocks     repo.CharacterLoginLocks
 }
 
-func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService) pb.CharactersServiceServer {
+func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService, loginLocks repo.CharacterLoginLocks) pb.CharactersServiceServer {
 	return &CharServer{
 		repo:           repo,
 		whoHandler:     whoHandler,
 		itemsTemplate:  itemsTemplate,
 		onlineChars:    onlineChars,
 		friendsService: friendsService,
+		loginLocks:     loginLocks,
 	}
+}
+
+func (c *CharServer) AcquireCharacterLoginLock(ctx context.Context, request *pb.AcquireCharacterLoginLockRequest) (*pb.AcquireCharacterLoginLockResponse, error) {
+	if request.AccountID == 0 || request.CharacterGUID == 0 || len(request.GatewayID) == 0 || len(request.GatewayID) > 64 {
+		return nil, status.Error(codes.InvalidArgument, "invalid character login lock owner")
+	}
+	character, err := c.repo.CharacterToLogInByGUID(ctx, request.RealmID, request.CharacterGUID)
+	if err != nil {
+		return nil, err
+	}
+	if character == nil || character.AccountID != request.AccountID {
+		return &pb.AcquireCharacterLoginLockResponse{}, nil
+	}
+	acquired, err := c.loginLocks.Acquire(ctx, request.RealmID, request.AccountID, request.CharacterGUID, request.GatewayID)
+	return &pb.AcquireCharacterLoginLockResponse{Acquired: acquired}, err
 }
 
 func (c *CharServer) CharactersToLoginForAccount(ctx context.Context, request *pb.CharactersToLoginForAccountRequest) (*pb.CharactersToLoginForAccountResponse, error) {
@@ -146,6 +165,9 @@ func (c *CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.Ch
 	char, err := c.repo.CharacterToLogInByGUID(ctx, request.RealmID, request.CharacterGUID)
 	if err != nil {
 		return nil, err
+	}
+	if char != nil && request.AccountID != 0 && char.AccountID != request.AccountID {
+		char = nil
 	}
 	var charResult *pb.LogInCharacter
 	if char != nil {
@@ -581,8 +603,8 @@ func (c *CharServer) GetOnlineCharacters(ctx context.Context, request *pb.GetOnl
 	}
 
 	return &pb.GetOnlineCharactersResponse{
-		Api:             ver,
-		CharacterGUIDs:  guids,
-		TotalCount:      uint32(len(guids)),
+		Api:            ver,
+		CharacterGUIDs: guids,
+		TotalCount:     uint32(len(guids)),
 	}, nil
 }

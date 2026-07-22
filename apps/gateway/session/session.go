@@ -15,11 +15,11 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/service"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets/worldsocket"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
-	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMatchmaking "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -260,9 +260,30 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	// Reset sending control for new login.
 	s.packetSendingControl = PacketSendingControl{}
+	characterGUID := p.Reader().Uint64()
+	lock, err := s.charServiceClient.AcquireCharacterLoginLock(ctx, &pbChar.AcquireCharacterLoginLockRequest{
+		RealmID:       root.RealmID,
+		AccountID:     s.accountID,
+		CharacterGUID: characterGUID,
+		GatewayID:     root.RetrievedGatewayID,
+	})
+	if err != nil || !lock.Acquired {
+		resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
+		resp.Uint8(uint8(packet.LoginErrorCodeDuplicateCharacter))
+		s.gameSocket.Send(resp)
+		if err != nil {
+			return fmt.Errorf("acquire character login lock: %w", err)
+		}
+		return nil
+	}
 
-	char, socket, err := s.connectToGameServer(ctx, p.Reader().Uint64(), nil, nil)
+	char, socket, err := s.connectToGameServer(ctx, characterGUID, nil, nil)
 	if err != nil {
+		if releaseErr := s.eventsProducer.CharacterLoggedOut(&events.GWEventCharacterLoggedOutPayload{
+			RealmID: root.RealmID, GatewayID: root.RetrievedGatewayID, CharGUID: characterGUID, AccountID: s.accountID,
+		}); releaseErr != nil {
+			s.logger.Error().Err(releaseErr).Msg("can't release failed character login lock")
+		}
 		code := packet.LoginErrorCodeLoginFailed
 		switch {
 		case errors.Is(err, worldConnectErrCharacterNotFound):
@@ -425,6 +446,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		Api:           root.SupportedCharServiceVer,
 		CharacterGUID: characterGUID,
 		RealmID:       root.RealmID,
+		AccountID:     s.accountID,
 	})
 
 	if err != nil {

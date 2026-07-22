@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	CharactersService_AcquireCharacterLoginLock_FullMethodName        = "/v1.CharactersService/AcquireCharacterLoginLock"
 	CharactersService_CharactersToLoginForAccount_FullMethodName      = "/v1.CharactersService/CharactersToLoginForAccount"
 	CharactersService_CharactersToLoginByGUID_FullMethodName          = "/v1.CharactersService/CharactersToLoginByGUID"
 	CharactersService_AccountDataForAccount_FullMethodName            = "/v1.CharactersService/AccountDataForAccount"
@@ -41,6 +42,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CharactersServiceClient interface {
+	AcquireCharacterLoginLock(ctx context.Context, in *AcquireCharacterLoginLockRequest, opts ...grpc.CallOption) (*AcquireCharacterLoginLockResponse, error)
 	CharactersToLoginForAccount(ctx context.Context, in *CharactersToLoginForAccountRequest, opts ...grpc.CallOption) (*CharactersToLoginForAccountResponse, error)
 	CharactersToLoginByGUID(ctx context.Context, in *CharactersToLoginByGUIDRequest, opts ...grpc.CallOption) (*CharactersToLoginByGUIDResponse, error)
 	AccountDataForAccount(ctx context.Context, in *AccountDataForAccountRequest, opts ...grpc.CallOption) (*AccountDataForAccountResponse, error)
@@ -68,6 +70,15 @@ type charactersServiceClient struct {
 
 func NewCharactersServiceClient(cc grpc.ClientConnInterface) CharactersServiceClient {
 	return &charactersServiceClient{cc}
+}
+
+func (c *charactersServiceClient) AcquireCharacterLoginLock(ctx context.Context, in *AcquireCharacterLoginLockRequest, opts ...grpc.CallOption) (*AcquireCharacterLoginLockResponse, error) {
+	out := new(AcquireCharacterLoginLockResponse)
+	err := c.cc.Invoke(ctx, CharactersService_AcquireCharacterLoginLock_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *charactersServiceClient) CharactersToLoginForAccount(ctx context.Context, in *CharactersToLoginForAccountRequest, opts ...grpc.CallOption) (*CharactersToLoginForAccountResponse, error) {
@@ -218,6 +229,7 @@ func (c *charactersServiceClient) GetOnlineCharacters(ctx context.Context, in *G
 // All implementations must embed UnimplementedCharactersServiceServer
 // for forward compatibility
 type CharactersServiceServer interface {
+	AcquireCharacterLoginLock(context.Context, *AcquireCharacterLoginLockRequest) (*AcquireCharacterLoginLockResponse, error)
 	CharactersToLoginForAccount(context.Context, *CharactersToLoginForAccountRequest) (*CharactersToLoginForAccountResponse, error)
 	CharactersToLoginByGUID(context.Context, *CharactersToLoginByGUIDRequest) (*CharactersToLoginByGUIDResponse, error)
 	AccountDataForAccount(context.Context, *AccountDataForAccountRequest) (*AccountDataForAccountResponse, error)
@@ -244,6 +256,9 @@ type CharactersServiceServer interface {
 type UnimplementedCharactersServiceServer struct {
 }
 
+func (UnimplementedCharactersServiceServer) AcquireCharacterLoginLock(context.Context, *AcquireCharacterLoginLockRequest) (*AcquireCharacterLoginLockResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AcquireCharacterLoginLock not implemented")
+}
 func (UnimplementedCharactersServiceServer) CharactersToLoginForAccount(context.Context, *CharactersToLoginForAccountRequest) (*CharactersToLoginForAccountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CharactersToLoginForAccount not implemented")
 }
@@ -303,6 +318,24 @@ type UnsafeCharactersServiceServer interface {
 
 func RegisterCharactersServiceServer(s grpc.ServiceRegistrar, srv CharactersServiceServer) {
 	s.RegisterService(&CharactersService_ServiceDesc, srv)
+}
+
+func _CharactersService_AcquireCharacterLoginLock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcquireCharacterLoginLockRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).AcquireCharacterLoginLock(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_AcquireCharacterLoginLock_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).AcquireCharacterLoginLock(ctx, req.(*AcquireCharacterLoginLockRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _CharactersService_CharactersToLoginForAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -600,6 +633,10 @@ var CharactersService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "v1.CharactersService",
 	HandlerType: (*CharactersServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "AcquireCharacterLoginLock",
+			Handler:    _CharactersService_AcquireCharacterLoginLock_Handler,
+		},
 		{
 			MethodName: "CharactersToLoginForAccount",
 			Handler:    _CharactersService_CharactersToLoginForAccount_Handler,
