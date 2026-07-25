@@ -91,6 +91,7 @@ func main() {
 		serversRegistryClient,
 		gameserverConnMgr,
 		realmIDs,
+		cfg.BattlegroundTesting,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create BattleGroundService service")
@@ -140,7 +141,10 @@ func main() {
 		wg.Done()
 	}()
 
-	log.Info().Str("address", lis.Addr().String()).Msg("🚀 Matchmaking Service started!")
+	log.Info().
+		Str("address", lis.Addr().String()).
+		Bool("battlegroundTesting", cfg.BattlegroundTesting).
+		Msg("🚀 Matchmaking Service started!")
 
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatal().Err(err).Msg("couldn't serve")

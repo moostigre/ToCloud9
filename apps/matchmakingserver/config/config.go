@@ -33,6 +33,10 @@ type Config struct {
 	// Battle group 1 consist from realms with ID 1 and 2.
 	// Battle group 2 consist from realms with ID 3 and 4.
 	BattleGroups map[uint32]string `yaml:"battleGroups" env:"BATTLE_GROUPS" env-separator:";" env-default:"1:1"`
+
+	// BattlegroundTesting allows a battleground to start with one player on either
+	// faction. It is intended for development and must remain disabled in production.
+	BattlegroundTesting bool `yaml:"battlegroundTesting" env:"BATTLEGROUND_TESTING" env-default:"false"`
 }
 
 // LoadConfig loads config from env variables

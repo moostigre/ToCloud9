@@ -147,6 +147,7 @@ func NewBattleGroundService(
 	serversRegistryClient pbServRegistry.ServersRegistryServiceClient,
 	gameserverGRPCConnMgr conn.GameServerGRPCConnMgr,
 	realmIDs []uint32,
+	battlegroundTesting bool,
 ) (BattleGroundService, error) {
 	templates, err := templatesRepo.GetAll(context.Background())
 	if err != nil {
@@ -172,7 +173,7 @@ func NewBattleGroundService(
 		return nil, fmt.Errorf("cannot get all battlegroups: %w", err)
 	}
 
-	service.queues = generateQueuesForAllBattlegroundTypes(&service, realmIDs, battlegroups)
+	service.queues = generateQueuesForAllBattlegroundTypes(&service, realmIDs, battlegroups, battlegroundTesting)
 	crossRealmNodesTracker.SetObserver(&service)
 
 	if crossRealmNodesTracker.IsCrossRealmNodeAvailable() {
@@ -986,7 +987,7 @@ func (s *battleGroundService) GetQueueOrBattlegroundLinkForPlayer(k QueuesByReal
 	return s.playersQueueOrBattleground[k]
 }
 
-func generateQueuesForAllBattlegroundTypes(service BattleGroundService, realmIDs []uint32, battlegroups []uint32) map[QueueByRealmOrBattlegroupKey]map[battleground.QueueTypeID]map[BracketID]PVPQueue {
+func generateQueuesForAllBattlegroundTypes(service BattleGroundService, realmIDs []uint32, battlegroups []uint32, battlegroundTesting bool) map[QueueByRealmOrBattlegroupKey]map[battleground.QueueTypeID]map[BracketID]PVPQueue {
 	res := map[QueueByRealmOrBattlegroupKey]map[battleground.QueueTypeID]map[BracketID]PVPQueue{}
 	types := []battleground.QueueTypeID{
 		battleground.QueueTypeIDAlteracValley,
@@ -1010,9 +1011,9 @@ func generateQueuesForAllBattlegroundTypes(service BattleGroundService, realmIDs
 			res[k][typeID] = map[BracketID]PVPQueue{}
 			for _, bracket := range template.GetAllBrackets() {
 				if typeID == battleground.QueueTypeIDRandomBattleground {
-					res[k][typeID][BracketID(bracket)] = NewBattlegroundRandomQueue(service, service, template, realmID, battlegroupID, bracket)
+					res[k][typeID][BracketID(bracket)] = NewBattlegroundRandomQueue(service, service, template, realmID, battlegroupID, bracket, battlegroundTesting)
 				} else {
-					res[k][typeID][BracketID(bracket)] = NewGenericBattlegroundQueue(service, service, template, realmID, battlegroupID, bracket)
+					res[k][typeID][BracketID(bracket)] = NewGenericBattlegroundQueue(service, service, template, realmID, battlegroupID, bracket, battlegroundTesting)
 				}
 			}
 		}

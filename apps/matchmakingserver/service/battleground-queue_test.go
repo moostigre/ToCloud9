@@ -21,7 +21,7 @@ func TestGenericBattlegroundQueue_AddQueuedGroup(t *testing.T) {
 	mockService.On("BattlegroundsThatNeedPlayers", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]battleground.Battleground{}, nil)
 	mockService.On("TemplateForQueueTypeID", mock.Anything, mock.Anything).Return(repo.BattlegroundTemplate{}, nil)
 
-	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1)
+	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1, false)
 	group := &service.QueuedGroup{
 		LeaderGUID:   getGUID(1, 1),
 		Members:      []guid.PlayerUnwrapped{getGUID(1, 1)},
@@ -60,7 +60,7 @@ func TestGenericBattlegroundQueue_CreateBG(t *testing.T) {
 		}
 
 		return nil
-	}), repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1)
+	}), repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1, false)
 	assert.NoError(t, queue.AddQueuedGroup(groupWithMembers(2, battleground.TeamAlliance)))
 	assert.NoError(t, queue.AddQueuedGroup(groupWithMembers(2, battleground.TeamAlliance)))
 	assert.NoError(t, queue.AddQueuedGroup(groupWithMembers(1, battleground.TeamAlliance)))
@@ -119,7 +119,7 @@ func TestGenericBattlegroundQueue_FillInExistingBG(t *testing.T) {
 		mock.Anything,
 	).Return(nil)
 
-	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1)
+	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1, false)
 
 	// Shouldn't be invited, since enough alliance players
 	assert.NoError(t, queue.AddQueuedGroup(groupWithMembers(2, battleground.TeamAlliance)))
@@ -135,7 +135,7 @@ func TestGenericBattlegroundQueue_RemoveQueuedGroup(t *testing.T) {
 	mockService.On("BattlegroundsThatNeedPlayers", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]battleground.Battleground{}, nil)
 	mockService.On("TemplateForQueueTypeID", mock.Anything, mock.Anything).Return(repo.BattlegroundTemplate{}, nil)
 
-	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1)
+	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1, false)
 
 	group := &service.QueuedGroup{
 		LeaderGUID:   getGUID(1, 1),
@@ -156,7 +156,7 @@ func TestGenericBattlegroundQueue_RemoveQueuedGroup_NotFound(t *testing.T) {
 	mockService.On("BattlegroundsThatNeedPlayers", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]battleground.Battleground{}, nil)
 	mockService.On("TemplateForQueueTypeID", mock.Anything, mock.Anything).Return(repo.BattlegroundTemplate{}, nil)
 
-	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1)
+	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1, false)
 
 	err := queue.RemoveQueuedGroup(getGUID(1, 999))
 	assert.ErrorIs(t, err, service.ErrPlayerNotFound)
@@ -167,7 +167,7 @@ func TestGenericBattlegroundQueue_GetAllQueuedGroups(t *testing.T) {
 	mockService.On("BattlegroundsThatNeedPlayers", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]battleground.Battleground{}, nil)
 	mockService.On("TemplateForQueueTypeID", mock.Anything, mock.Anything).Return(repo.BattlegroundTemplate{}, nil)
 
-	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1)
+	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1, false)
 
 	group1 := &service.QueuedGroup{LeaderGUID: getGUID(1, 1), Members: []guid.PlayerUnwrapped{getGUID(1, 1)}, RealmID: 1, TeamID: battleground.TeamAlliance, EnqueuedTime: time.Now()}
 	group2 := &service.QueuedGroup{LeaderGUID: getGUID(1, 2), Members: []guid.PlayerUnwrapped{getGUID(1, 2)}, RealmID: 1, TeamID: battleground.TeamHorde, EnqueuedTime: time.Now()}

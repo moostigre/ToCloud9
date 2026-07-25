@@ -138,6 +138,8 @@ auctionhouse:
 
 matchmakingserver:
   replicaCount: 1
+  # Development only: allow a battleground to start with one player and an empty opposing team.
+  battlegroundTesting: true
   image:
     repository: ghcr.io/walkline/matchmakingserver
     pullPolicy: Always
@@ -162,6 +164,16 @@ gateway:
     type: NodePort
 
 gameserver_ac:
+  # Stream one small mod-qol payload at a time; each chunk is acknowledged.
+  wardenNumLuaChecks: 1
+  racialSwap:
+    enabled: true
+    # Zero makes racial changes free.
+    costGold: 10
+    # Zero allows changes without a cooldown.
+    cooldownDays: 0
+    allowCrossFaction: true
+    enforcePvPAppearance: true
   initcontainer:
     # If true - downloads assets and unzip them if pvc is empty.
     download_enabled: true

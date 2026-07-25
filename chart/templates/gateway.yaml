@@ -49,6 +49,8 @@ spec:
           value: {{ .Release.Name }}-auctionhouse:{{ .Values.auctionhouse.service.externalPort}}
         - name: GROUP_SERVICE_ADDRESS
           value: {{ .Release.Name }}-groupserver:{{ .Values.groupserver.service.externalPort}}
+        - name: MATCHMAKING_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-matchmakingserver:{{ .Values.matchmakingserver.service.externalPort}}
         - name: DB_SCHEMA_TYPE
           valueFrom:
             secretKeyRef:

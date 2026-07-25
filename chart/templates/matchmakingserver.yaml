@@ -25,6 +25,8 @@ spec:
           value: nats://{{ .Release.Name }}-nats:4222
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
+        - name: BATTLEGROUND_TESTING
+          value: "{{ .Values.matchmakingserver.battlegroundTesting | default false }}"
         - name: CHAR_DB_CONNECTION
           valueFrom:
             secretKeyRef:

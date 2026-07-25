@@ -56,6 +56,8 @@ spec:
           value: {{ .Release.Name }}-guidserver:{{ .Values.guidserver.service.externalPort}}
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
+        - name: MATCHMAKING_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-matchmakingserver:{{ .Values.matchmakingserver.service.externalPort}}
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
         - name: DB_SCHEMA_TYPE
@@ -101,6 +103,19 @@ spec:
           value: "1"
         - name: AC_WORLD_SERVER_PORT
           value: "{{ .Values.gameserver_ac.port_world | int }}"
+        - name: AC_WARDEN_NUM_LUA_CHECKS
+          value: "{{ default 1 .Values.gameserver_ac.wardenNumLuaChecks | int }}"
+        - name: AC_RACIAL_SWAP_ENABLE
+          value: {{ ternary "1" "0" .Values.gameserver_ac.racialSwap.enabled | quote }}
+        - name: AC_RACIAL_SWAP_COST_GOLD
+          value: "{{ default 0 .Values.gameserver_ac.racialSwap.costGold | int }}"
+        - name: AC_RACIAL_SWAP_COOLDOWN_DAYS
+          value: "{{ default 0 .Values.gameserver_ac.racialSwap.cooldownDays | int }}"
+        - name: AC_RACIAL_SWAP_ALLOW_CROSS_FACTION
+          value: {{ ternary "1" "0" .Values.gameserver_ac.racialSwap.allowCrossFaction | quote }}
+        # ConfigMgr expands "PvPAppearance" as "PV_PAPPEARANCE".
+        - name: AC_RACIAL_SWAP_ENFORCE_PV_PAPPEARANCE
+          value: {{ ternary "1" "0" .Values.gameserver_ac.racialSwap.enforcePvPAppearance | quote }}
         - name: CHARACTER_GUIDS_BUFFER_SIZE
           value: "5"
         - name: ITEM_GUIDS_BUFFER_SIZE

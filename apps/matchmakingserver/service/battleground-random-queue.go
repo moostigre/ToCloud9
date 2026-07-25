@@ -14,11 +14,11 @@ type BattlegroundRandomQueue struct {
 	service BattleGroundService
 }
 
-func NewBattlegroundRandomQueue(service BattleGroundService, battleGroundCreator BattlegroundCreator, template repo.BattlegroundTemplate, realmID, battlegroupID uint32, bracketID uint8) *BattlegroundRandomQueue {
+func NewBattlegroundRandomQueue(service BattleGroundService, battleGroundCreator BattlegroundCreator, template repo.BattlegroundTemplate, realmID, battlegroupID uint32, bracketID uint8, battlegroundTesting bool) *BattlegroundRandomQueue {
 	randomQ := &BattlegroundRandomQueue{
 		service: service,
 	}
-	realQ := NewGenericBattlegroundQueue(service, randomQ, template, realmID, battlegroupID, bracketID)
+	realQ := NewGenericBattlegroundQueue(service, randomQ, template, realmID, battlegroupID, bracketID, battlegroundTesting)
 	randomQ.realQ = realQ
 	realQ.QueueTypeID = battleground.QueueTypeIDRandomBattleground
 	return randomQ

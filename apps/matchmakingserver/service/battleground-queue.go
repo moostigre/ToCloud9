@@ -55,13 +55,14 @@ type GenericBattlegroundQueue struct {
 
 	battleGroundService BattleGroundService
 	battleGroundCreator BattlegroundCreator
+	battlegroundTesting bool
 
 	mut                        sync.RWMutex
 	queuedGroups               map[ /*leaderGUID*/ guid.PlayerUnwrapped]QueuedGroup
 	playersGroupLeaderByPlayer map[ /*playerGUID*/ guid.PlayerUnwrapped] /*leaderGUID*/ guid.PlayerUnwrapped
 }
 
-func NewGenericBattlegroundQueue(service BattleGroundService, battleGroundCreator BattlegroundCreator, template repo.BattlegroundTemplate, realmID, battlegroupID uint32, bracketID uint8) *GenericBattlegroundQueue {
+func NewGenericBattlegroundQueue(service BattleGroundService, battleGroundCreator BattlegroundCreator, template repo.BattlegroundTemplate, realmID, battlegroupID uint32, bracketID uint8, battlegroundTesting bool) *GenericBattlegroundQueue {
 	return &GenericBattlegroundQueue{
 		BattlegroundTypeID:         battleground.TypeID(template.TypeID),
 		QueueTypeID:                battleground.QueueTypeID(template.TypeID),
@@ -70,6 +71,7 @@ func NewGenericBattlegroundQueue(service BattleGroundService, battleGroundCreato
 		RealmID:                    realmID,
 		battleGroundService:        service,
 		battleGroundCreator:        battleGroundCreator,
+		battlegroundTesting:        battlegroundTesting,
 		queuedGroups:               map[guid.PlayerUnwrapped]QueuedGroup{},
 		playersGroupLeaderByPlayer: map[guid.PlayerUnwrapped]guid.PlayerUnwrapped{},
 	}
@@ -176,10 +178,18 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 
 	// Try to create a new battleground
 	template := q.getBattlegroundTemplate()
-	allianceGroup, hordeGroup := q.balancedGroups(int(template.MinPlayersPerTeam), int(template.MaxPlayersPerTeam))
+	minPlayers := int(template.MinPlayersPerTeam)
+	if q.battlegroundTesting {
+		minPlayers = 1
+	}
+	allianceGroup, hordeGroup := q.balancedGroups(minPlayers, int(template.MaxPlayersPerTeam))
 
 	// If not enough groups - do nothing.
-	if len(allianceGroup) == 0 || len(hordeGroup) == 0 {
+	if q.battlegroundTesting {
+		if len(allianceGroup) == 0 && len(hordeGroup) == 0 {
+			return nil
+		}
+	} else if len(allianceGroup) == 0 || len(hordeGroup) == 0 {
 		return nil
 	}
 

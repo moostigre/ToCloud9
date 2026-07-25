@@ -186,13 +186,20 @@ func (s *GameSession) enterBattleground(ctx context.Context) error {
 		return fmt.Errorf("gameServerGRPCConnMgr.GRPCConnByGameServerAddress failed: %w", err)
 	}
 
+	playersToAddAlliance := []uint64(nil)
+	playersToAddHorde := []uint64(nil)
+	if wow.DefaultRaces[s.character.Race].Team == wow.TeamHorde {
+		playersToAddHorde = []uint64{crossrealmAdjustedPlayerGUID}
+	} else {
+		playersToAddAlliance = []uint64{crossrealmAdjustedPlayerGUID}
+	}
+
 	_, err = grpcClient.AddPlayersToBattleground(ctx, &pbGameServ.AddPlayersToBattlegroundRequest{
-		Api:                "0.0.1",
-		BattlegroundTypeID: pbGameServ.BattlegroundType(res.Slots[0].BgTypeID),
-		InstanceID:         bgData.AssignedBattlegroundInstanceID,
-		// TODO: clarify alliance & horde situation
-		PlayersToAddAlliance: []uint64{crossrealmAdjustedPlayerGUID},
-		PlayersToAddHorde:    nil,
+		Api:                  "0.0.1",
+		BattlegroundTypeID:   pbGameServ.BattlegroundType(res.Slots[0].BgTypeID),
+		InstanceID:           bgData.AssignedBattlegroundInstanceID,
+		PlayersToAddAlliance: playersToAddAlliance,
+		PlayersToAddHorde:    playersToAddHorde,
 	})
 	if err != nil {
 		return fmt.Errorf("AddPlayersToBattleground failed: %w", err)
@@ -276,13 +283,28 @@ func (s *GameSession) battlegroundPlayerRedirect(ctx context.Context, playerGuid
 		return fmt.Errorf("connectToGameServerWithAddress failed: %w, address: %s", err, desiredGameServerAddress)
 	}
 
-	select {
-	case _, open := <-newSocket.ReadChannel():
-		if !open {
-			return fmt.Errorf("world socket closed")
+	// connectToGameServerWithAddress returns immediately after sending
+	// CMSG_PLAYER_LOGIN. Wait until AzerothCore has actually added the player
+	// to the destination map before calling AddPlayersToBattleground; its core
+	// handler otherwise silently ignores a player that ObjectAccessor cannot
+	// find yet and returns success without teleporting.
+	for {
+		select {
+		case p, open := <-newSocket.ReadChannel():
+			if !open {
+				return fmt.Errorf("world socket closed while waiting for player login")
+			}
+			if p.Opcode == packet.SMsgCharacterLoginFailed {
+				return fmt.Errorf("character login failed on battleground game server")
+			}
+			if p.Opcode == packet.SMsgTimeSyncReq {
+				break
+			}
+			continue
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-	case <-ctx.Done():
-		return ctx.Err()
+		break
 	}
 
 	s.worldSocket = newSocket
