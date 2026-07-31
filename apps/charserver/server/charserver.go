@@ -27,7 +27,7 @@ type CharServer struct {
 	loginLocks     repo.CharacterLoginLocks
 }
 
-func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService, loginLocks repo.CharacterLoginLocks) pb.CharactersServiceServer {
+func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService, loginLocks repo.CharacterLoginLocks, guildNames service.GuildNameResolver) pb.CharactersServiceServer {
 	return &CharServer{
 		repo:           repo,
 		whoHandler:     whoHandler,
@@ -35,6 +35,7 @@ func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoH
 		onlineChars:    onlineChars,
 		friendsService: friendsService,
 		loginLocks:     loginLocks,
+		guildNames:     guildNames,
 	}
 }
 
@@ -245,12 +246,34 @@ func (c *CharServer) WhoQuery(ctx context.Context, request *pb.WhoQueryRequest) 
 	if err != nil {
 		return nil, err
 	}
+	count := len(chars)
+	if count > 50 {
+		count = 50
+	}
+
+	// Guild ids are snapshotted at login, a guild joined mid-session shows up after relog.
+	guildIDs := make([]uint32, 0, count)
+	for i := 0; i < count; i++ {
+		if chars[i].CharGuildID != 0 {
+			guildIDs = append(guildIDs, chars[i].CharGuildID)
+		}
+	}
+
+	guildNames := map[uint32]string{}
+	if len(guildIDs) > 0 {
+		guildNames, err = c.guildNames.GuildNamesByIDs(ctx, request.RealmID, guildIDs)
+		if err != nil {
+			log.Warn().Err(err).Msg("can't resolve guild names for who query")
+			guildNames = map[uint32]string{}
+		}
+	}
+
 	items := make([]*pb.WhoQueryResponse_WhoItem, 0, 50)
-	for i := 0; i < len(chars) && i < 50; i++ {
+	for i := 0; i < count; i++ {
 		items = append(items, &pb.WhoQueryResponse_WhoItem{
 			Guid:   chars[i].CharGUID,
 			Name:   chars[i].CharName,
-			Guild:  "", // TODO: add guilds support.
+			Guild:  guildNames[chars[i].CharGuildID],
 			Lvl:    uint32(chars[i].CharLevel),
 			Class:  uint32(chars[i].CharClass),
 			Race:   uint32(chars[i].CharRace),

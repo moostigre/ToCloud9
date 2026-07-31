@@ -122,6 +122,7 @@ services:
     environment:
       PORT: 8999
       REDIS_URL: redis://:@redis:6379/0
+      LAYER_MAPS: ${LAYER_MAPS:-}
     profiles:
       - ac
       - tc
@@ -160,6 +161,7 @@ services:
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
+      GUILDS_SERVICE_ADDRESS: guildserver:8995
     profiles:
       - ac
       - tc
@@ -175,6 +177,7 @@ services:
         condition: service_healthy
     environment:
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
       NATS_URL: nats://nats:4222
       PORT: 8992
     profiles:
