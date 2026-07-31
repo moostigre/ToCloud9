@@ -31,6 +31,8 @@ databases:
   db_auth_name: acore_auth
   db_characters_name: acore_characters
   db_world_name: acore_world
+  # Shared coordinator database used by all matchmaking replicas and realms.
+  db_matchmaking_name: acore_matchmaking
   # External DB hostname is optional field to use external database,
   # will use credentials and databases names from above to build connection string.
   # Don't forget to disable mysql with mysql.enabled=false.

@@ -26,6 +26,9 @@ generate:
 migrate-characters:
 	migrate -database "mysql://trinity:trinity@tcp(localhost:3306)/characters" -path sql/characters/mysql up
 
+migrate-matchmaking:
+	migrate -database "mysql://trinity:trinity@tcp(localhost:3306)/matchmaking" -path sql/matchmaking/mysql up
+
 test:
 	go test ./... -race -coverprofile=coverage.out -covermode=atomic
 

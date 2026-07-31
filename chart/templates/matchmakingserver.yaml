@@ -8,7 +8,7 @@ spec:
   selector:
     matchLabels:
       app: {{ $fullname }}-matchmakingserver
-  replicas: {{ default 1 .Values.mailserver.replicaCount | int }}
+  replicas: {{ default 1 .Values.matchmakingserver.replicaCount | int }}
   template:
     metadata:
       labels:
@@ -35,6 +35,11 @@ spec:
             secretKeyRef:
               name: {{ .Release.Name }}-databases-config
               key: WORLD_DB_CONNECTION
+        - name: MATCHMAKING_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: MATCHMAKING_DB_CONNECTION
         ports:
         - containerPort: {{ .Values.matchmakingserver.service.internalPort | int  }}
         # livenessProbe:
