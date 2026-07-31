@@ -17,6 +17,10 @@ type Config struct {
 	// WorldDBConnection is connection string to the world database
 	WorldDBConnection string `yaml:"worldDB" env:"WORLD_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/world"`
 
+	// MatchmakingDBConnection points to the shared, cluster-wide matchmaking database.
+	// It must not be a realm-local characters database when cross-realm LFG is enabled.
+	MatchmakingDBConnection string `yaml:"matchmakingDB" env:"MATCHMAKING_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/matchmaking?parseTime=true"`
+
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://nats:4222"`
 

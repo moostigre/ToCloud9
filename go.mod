@@ -3,8 +3,10 @@ module github.com/walkline/ToCloud9
 go 1.22
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/go-mysql-org/go-mysql v1.10.1-0.20241221150101-2f4217957dd5
 	github.com/go-sql-driver/mysql v1.8.1
+	github.com/google/uuid v1.6.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/nats-io/nats.go v1.38.0
 	github.com/pingcap/tidb/pkg/parser v0.0.0-20250124080159-3f742662039e
@@ -27,7 +29,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect

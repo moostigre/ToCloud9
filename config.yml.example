@@ -3,6 +3,7 @@ db:
   characters: &defaultCharactersDB
     1: "trinity:trinity@tcp(127.0.0.1:3306)/characters"
   world: &defaultWorldDB "trinity:trinity@tcp(127.0.0.1:3306)/world"
+  matchmaking: &defaultMatchmakingDB "trinity:trinity@tcp(127.0.0.1:3306)/matchmaking?parseTime=true"
   # Supported 2 schema types:
   #   tc - TrinityCore
   #   ac - AzerothCore
@@ -117,6 +118,7 @@ matchmakingserver:
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
   worldDB: *defaultWorldDB
+  matchmakingDB: *defaultMatchmakingDB
   charactersDB: *defaultCharactersDB
   battleGroups:
     1: "1"
