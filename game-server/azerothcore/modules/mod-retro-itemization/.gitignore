@@ -1,0 +1,8 @@
+# Runtime configuration derived from the distributed template
+mod_retro_itemization.conf
+
+# Local generated/imported data
+data/generated/
+build/
+cmake-build-*/
+__pycache__/
