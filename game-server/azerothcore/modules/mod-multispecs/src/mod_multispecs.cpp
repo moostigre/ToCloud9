@@ -163,7 +163,6 @@ public:
         static ChatCommandTable multispecsCommands =
         {
             { "switch", HandleSwitch, rbac::RBAC_PERM_COMMAND_SERVER_INFO, Console::No },
-            { "reset", HandleReset, rbac::RBAC_PERM_COMMAND_SERVER_INFO, Console::No },
             { "status", HandleStatus, rbac::RBAC_PERM_COMMAND_SERVER_INFO, Console::No }
         };
         static ChatCommandTable commands =
@@ -174,34 +173,6 @@ public:
     }
 
 private:
-    static bool HandleReset(ChatHandler* handler, uint8 displayIndex)
-    {
-        Player* player = handler->GetSession()->GetPlayer();
-        if (displayIndex != 3 || player->GetActiveSpec() + 1 != displayIndex)
-        {
-            handler->SendSysMessage("Only the active third specialization can be reset with this control.");
-            return false;
-        }
-
-        if (!CanSwitch(player))
-        {
-            handler->SendSysMessage("You must be alive, out of combat, and standing still in the world to reset talents.");
-            return false;
-        }
-
-        if (!player->resetTalents(false))
-        {
-            handler->SendSysMessage("That specialization has no talents to reset, or you cannot afford the reset cost.");
-            SendThirdSpecTalents(player);
-            return false;
-        }
-
-        player->SendTalentsInfoData(false);
-        SendThirdSpecTalents(player);
-        handler->SendSysMessage("Your third specialization talents have been reset.");
-        return true;
-    }
-
     static bool HandleSwitch(ChatHandler* handler, uint8 displayIndex)
     {
         Player* player = handler->GetSession()->GetPlayer();

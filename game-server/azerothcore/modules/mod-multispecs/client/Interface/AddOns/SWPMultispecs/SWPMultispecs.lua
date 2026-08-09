@@ -1,7 +1,6 @@
 local currentSpec, unlockedSpecs = 1, 1
 local thirdSpecSelected = false
 local thirdSpecTab
-local thirdSpecResetButton
 local talentUIReady = false
 local refreshingThirdSpec = false
 local thirdSpecTalents = {}
@@ -11,7 +10,7 @@ local nativeGetActiveTalentGroup = GetActiveTalentGroup
 local nativeGetUnspentTalentPoints = GetUnspentTalentPoints
 local nativeGetTalentTabInfo = GetTalentTabInfo
 local nativeGetTalentPrereqs = GetTalentPrereqs
-SWPMultispecsVersion = "1.1.8"
+SWPMultispecsVersion = "1.1.9"
 
 local function GetThirdSpecTalentRank(tabIndex, tier, column)
     return thirdSpecTalents[tabIndex .. ":" .. tier .. ":" .. column] or 0
@@ -254,23 +253,6 @@ local function UpdateSpecControls()
         end
     end
     UpdateSpecTabStates()
-    if thirdSpecResetButton then
-        if currentSpec == 3 and thirdSpecSelected then
-            thirdSpecResetButton:Show()
-            local hasTalents = false
-            for _, rank in pairs(thirdSpecTalents) do
-                if rank > 0 then hasTalents = true break end
-            end
-            if hasTalents then
-                thirdSpecResetButton:Enable()
-            else
-                thirdSpecResetButton:Disable()
-            end
-        else
-            thirdSpecResetButton:Hide()
-        end
-    end
-
     -- Blizzard disables talent buttons when its two-group client state thinks
     -- the displayed group is inactive. Spec 3 uses custom click validation.
     if currentSpec == 3 and thirdSpecSelected then
@@ -364,24 +346,6 @@ local function CreateThirdSpecTab()
     thirdSpecTab:SetScript("OnLeave", function() GameTooltip:Hide() end)
     SkinThirdSpecTab()
     UpdateSpecTabStates()
-
-    StaticPopupDialogs["SWP_MULTISPEC_RESET"] = {
-        text = "Reset all talents in your active third specialization?",
-        button1 = ACCEPT,
-        button2 = CANCEL,
-        OnAccept = function() SendChatMessage(".multispec reset 3", "SAY") end,
-        timeout = 0,
-        whileDead = 0,
-        hideOnEscape = 1,
-        preferredIndex = 3,
-    }
-    thirdSpecResetButton = CreateFrame("Button", "SWPMultispecsResetButton", PlayerTalentFrame,
-        "UIPanelButtonTemplate")
-    thirdSpecResetButton:SetSize(96, 22)
-    thirdSpecResetButton:SetPoint("BOTTOMRIGHT", PlayerTalentFrame, "BOTTOMRIGHT", -12, 42)
-    thirdSpecResetButton:SetText("Reset Spec")
-    thirdSpecResetButton:SetScript("OnClick", function() StaticPopup_Show("SWP_MULTISPEC_RESET") end)
-    thirdSpecResetButton:Hide()
 
     PlayerSpecTab3:ClearAllPoints()
     PlayerSpecTab3:SetPoint("TOPLEFT", thirdSpecTab, "BOTTOMLEFT", 0, -39)

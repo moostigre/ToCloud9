@@ -2,7 +2,7 @@
 ## Title: SWP Multispecs
 ## Notes: Client controls for server-managed dual and triple specialization.
 ## Author: Super WoW Project
-## Version: 1.1.8
+## Version: 1.1.9
 ## SavedVariables: SWPMultispecsDB
 
 SWPMultispecs.lua
