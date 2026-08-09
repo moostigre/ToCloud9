@@ -1,11 +1,15 @@
 [worldserver]
 
-# Enables automatic dual- and triple-specialization unlocks.
+# Enables purchasable dual specialization and character-bound triple specialization.
 Multispecs.Enable = 1
 
-# Characters receive their second talent group at this level.
+# Characters may purchase their second talent group at this level.
 Multispecs.DualSpecLevel = 10
 
-# Characters receive their third talent group at this level.
+# Price of dual specialization in gold. The default is 50 gold.
+Multispecs.DualSpecPriceGold = 50
+
+# Characters may use their third talent group at this level after dual spec has
+# been purchased and the character owns the website-shop entitlement.
 # Must be greater than or equal to DualSpecLevel.
-Multispecs.TripleSpecLevel = 40
+Multispecs.TripleSpecLevel = 10

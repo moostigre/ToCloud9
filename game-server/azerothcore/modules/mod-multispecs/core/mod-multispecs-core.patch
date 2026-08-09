@@ -38,6 +38,29 @@ index b04393be6..fc590d5ba 100644
  #define MAX_GLYPH_SLOT_INDEX    6
 
  // Custom values
+diff --git a/src/server/game/Entities/Player/PlayerGossip.cpp b/src/server/game/Entities/Player/PlayerGossip.cpp
+index 733bcc999..202c46222 100644
+--- a/src/server/game/Entities/Player/PlayerGossip.cpp
++++ b/src/server/game/Entities/Player/PlayerGossip.cpp
+@@ -339,16 +339,8 @@ void Player::OnGossipSelect(WorldObject* source, uint32 gossipListId, uint32 menu
+             GetSession()->SendTrainerList(source->ToCreature());
+             break;
+         case GOSSIP_OPTION_LEARNDUALSPEC:
+-            if (GetSpecsCount() == 1 && GetLevel() >= sWorld->getIntConfig(CONFIG_MIN_DUALSPEC_LEVEL))
+-            {
+-                // Cast spells that teach dual spec
+-                // Both are also ImplicitTarget self and must be cast by player
+-                CastSpell(this, 63680, true, nullptr, nullptr, GetGUID());
+-                CastSpell(this, 63624, true, nullptr, nullptr, GetGUID());
+-
+-                PrepareGossipMenu(source, menuItemData->GossipActionMenuId);
+-                SendPreparedGossip(source);
+-            }
++            // mod-multispecs owns the purchase, price, and persistent gate.
++            ChatHandler(GetSession()).SendSysMessage("Purchase dual specialization from the talent window.");
+             break;
+         case GOSSIP_OPTION_UNLEARNTALENTS:
+             PlayerTalkClass->SendCloseGossip();
 diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
 index 35dd8dc99..5419ae0cd 100644
 --- a/src/server/game/Entities/Player/Player.cpp

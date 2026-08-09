@@ -1,6 +1,9 @@
 local currentSpec, unlockedSpecs = 1, 1
+local dualSpecLevel, tripleSpecLevel, dualSpecPrice = 10, 10, 50
+local dualPurchased, tripleEntitled = false, false
 local thirdSpecSelected = false
 local thirdSpecTab
+local unlockButton
 local talentUIReady = false
 local refreshingThirdSpec = false
 local thirdSpecTalents = {}
@@ -10,7 +13,18 @@ local nativeGetActiveTalentGroup = GetActiveTalentGroup
 local nativeGetUnspentTalentPoints = GetUnspentTalentPoints
 local nativeGetTalentTabInfo = GetTalentTabInfo
 local nativeGetTalentPrereqs = GetTalentPrereqs
-SWPMultispecsVersion = "1.1.9"
+SWPMultispecsVersion = "1.2.0"
+
+StaticPopupDialogs["SWP_MULTISPECS_BUY_DUAL"] = {
+    text = "Purchase dual specialization for %d gold?",
+    button1 = YES,
+    button2 = NO,
+    OnAccept = function() SendChatMessage(".multispec buydual", "SAY") end,
+    timeout = 0,
+    whileDead = false,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
 
 local function GetThirdSpecTalentRank(tabIndex, tier, column)
     return thirdSpecTalents[tabIndex .. ":" .. tier .. ":" .. column] or 0
@@ -194,6 +208,29 @@ local function SetThirdSpecTabShown(shown)
     end
 end
 
+local function UpdateUnlockButton()
+    if not unlockButton then return end
+
+    local level = UnitLevel("player") or 1
+    if unlockedSpecs < 2 then
+        unlockButton:SetText("Buy Dual Spec (" .. dualSpecPrice .. "g)")
+        unlockButton:Show()
+        if level >= dualSpecLevel then unlockButton:Enable() else unlockButton:Disable() end
+    elseif unlockedSpecs < 3 then
+        unlockButton:Show()
+        if not tripleEntitled then
+            unlockButton:SetText("Triple Spec: Website Shop")
+        elseif level < tripleSpecLevel then
+            unlockButton:SetText("Triple Spec Requires Level " .. tripleSpecLevel)
+        else
+            unlockButton:SetText("Refresh Triple Spec")
+        end
+        unlockButton:Enable()
+    else
+        unlockButton:Hide()
+    end
+end
+
 local function UpdateThirdSpecIcon()
     if not thirdSpecTab then return end
 
@@ -344,6 +381,34 @@ local function CreateThirdSpecTab()
         GameTooltip:Show()
     end)
     thirdSpecTab:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    unlockButton = CreateFrame("Button", "SWPMultispecsUnlockButton", PlayerTalentFrame,
+        "UIPanelButtonTemplate")
+    unlockButton:SetWidth(190)
+    unlockButton:SetHeight(22)
+    unlockButton:SetPoint("BOTTOMRIGHT", PlayerTalentFrame, "BOTTOMRIGHT", -36, 45)
+    unlockButton:SetScript("OnClick", function()
+        if unlockedSpecs < 2 then
+            StaticPopup_Show("SWP_MULTISPECS_BUY_DUAL", dualSpecPrice)
+        else
+            SendChatMessage(".multispec buytriple", "SAY")
+        end
+    end)
+    unlockButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if unlockedSpecs < 2 then
+            GameTooltip:AddLine("Dual Specialization")
+            GameTooltip:AddLine("Requires level " .. dualSpecLevel .. " and " ..
+                dualSpecPrice .. " gold.", 1, 1, 1, true)
+        else
+            GameTooltip:AddLine("Triple Specialization")
+            GameTooltip:AddLine("Requires level " .. tripleSpecLevel ..
+                ", dual specialization, and the character-bound website-shop perk.",
+                1, 1, 1, true)
+        end
+        GameTooltip:Show()
+    end)
+    unlockButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
     SkinThirdSpecTab()
     UpdateSpecTabStates()
 
@@ -400,6 +465,7 @@ local function CreateThirdSpecTab()
         UpdateSpecControls()
     end)
     SetThirdSpecTabShown(unlockedSpecs >= 3)
+    UpdateUnlockButton()
     UpdateThirdSpecIcon()
 end
 
@@ -425,13 +491,18 @@ ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, message)
         end
         return true
     end
-    local active, count = string.match(message or "", "^MULTISPECS_STATE (%d+) (%d+) %d+ %d+$")
+    local active, count, dualLevel, tripleLevel, price, boughtDual, ownsTriple =
+        string.match(message or "", "^MULTISPECS_STATE (%d+) (%d+) (%d+) (%d+) (%d+) (%d+) (%d+)$")
     if not active then return false end
 
     currentSpec, unlockedSpecs = tonumber(active), tonumber(count)
+    dualSpecLevel, tripleSpecLevel, dualSpecPrice = tonumber(dualLevel),
+        tonumber(tripleLevel), tonumber(price)
+    dualPurchased, tripleEntitled = boughtDual == "1", ownsTriple == "1"
     if thirdSpecTab then
         UpdateSpecTabStates()
         SetThirdSpecTabShown(unlockedSpecs >= 3)
+        UpdateUnlockButton()
         if unlockedSpecs < 3 and thirdSpecSelected then
             thirdSpecSelected = false
             PlayerSpecTab_OnClick(PlayerSpecTab1)
