@@ -1,0 +1,8 @@
+## Interface: 30300
+## Title: SWP Multispecs
+## Notes: Client controls for server-managed dual and triple specialization.
+## Author: Super WoW Project
+## Version: 1.1.8
+## SavedVariables: SWPMultispecsDB
+
+SWPMultispecs.lua

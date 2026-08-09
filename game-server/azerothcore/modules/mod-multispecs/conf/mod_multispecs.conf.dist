@@ -1,0 +1,11 @@
+[worldserver]
+
+# Enables automatic dual- and triple-specialization unlocks.
+Multispecs.Enable = 1
+
+# Characters receive their second talent group at this level.
+Multispecs.DualSpecLevel = 10
+
+# Characters receive their third talent group at this level.
+# Must be greater than or equal to DualSpecLevel.
+Multispecs.TripleSpecLevel = 40
