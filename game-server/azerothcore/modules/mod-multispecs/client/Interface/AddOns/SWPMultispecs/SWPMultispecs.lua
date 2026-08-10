@@ -364,6 +364,11 @@ local function SelectThirdSpec()
 end
 
 local function CreateThirdSpecTab()
+    -- The retro TBC talent frame intentionally presents one active tree set,
+    -- matching the 2.4.3 client.  Multispec remains available through server
+    -- commands, but must not inject Wrath spec tabs or shop controls into that
+    -- frame.
+    if SWPTbcTalentUIEnabled then return end
     if talentUIReady or not PlayerTalentFrame or not PlayerSpecTab2 then return end
     talentUIReady = true
 
