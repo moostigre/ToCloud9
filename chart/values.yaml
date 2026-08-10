@@ -166,6 +166,21 @@ gateway:
     type: NodePort
 
 gameserver_ac:
+  retroProgression:
+    enabled: false
+    profile: WotLK
+    strictData: true
+    enforceSpellCasts: true
+    removeUnavailableSpellsOnLogin: true
+  retroItemization:
+    enabled: false
+    profile: WotLK
+    strictData: true
+  multispecs:
+    enabled: true
+    dualSpecLevel: 10
+    dualSpecPriceGold: 50
+    tripleSpecLevel: 40
   # Stream one small mod-qol payload at a time; each chunk is acknowledged.
   wardenNumLuaChecks: 1
   racialSwap:

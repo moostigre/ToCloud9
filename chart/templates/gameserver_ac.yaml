@@ -5,6 +5,11 @@ metadata: {{ $fullname := printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | 
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
 spec:
+  # A realm must not advertise both an old and a replacement worldserver.
+  # Registry health eviction is asynchronous, so overlapping pods can route a
+  # reconnect to the terminating endpoint.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: {{ $fullname }}-gameserver-ac
@@ -140,14 +145,20 @@ spec:
           containerPort: {{ .Values.gameserver_ac.port_soap | int  }}
         - name: telnet
           containerPort: {{ .Values.gameserver_ac.port_telnet | int  }}
-        # livenessProbe:
-        #   httpGet:
-        #     path: /
-        #     port: {{ .Values.gameserver_ac.service.internalPort | int }}
-        # readinessProbe:
-        #   httpGet:
-        #     path: /
-        #     port: {{ .Values.gameserver_ac.service.internalPort | int }}
+        # Do not advertise a pod merely because its container process exists.
+        # The world TCP listener appears only after worldserver initializes.
+        startupProbe:
+          tcpSocket:
+            port: world
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 60
+        readinessProbe:
+          tcpSocket:
+            port: world
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 3
         resources:
 {{ toYaml .Values.resources | indent 10 }}
 
@@ -175,3 +186,21 @@ metadata:
 data:
   worldserver.conf: |
 {{ $.Files.Get "files/worldserver.conf" | indent 4 }}
+  mod_multispecs.conf: |
+    [worldserver]
+    Multispecs.Enable = {{ ternary 1 0 .Values.gameserver_ac.multispecs.enabled }}
+    Multispecs.DualSpecLevel = {{ default 10 .Values.gameserver_ac.multispecs.dualSpecLevel | int }}
+    Multispecs.DualSpecPriceGold = {{ default 50 .Values.gameserver_ac.multispecs.dualSpecPriceGold | int }}
+    Multispecs.TripleSpecLevel = {{ default 40 .Values.gameserver_ac.multispecs.tripleSpecLevel | int }}
+  mod_retro_itemization.conf: |
+    [worldserver]
+    RetroItemization.Enable = {{ ternary 1 0 .Values.gameserver_ac.retroItemization.enabled }}
+    RetroItemization.Profile = {{ default "WotLK" .Values.gameserver_ac.retroItemization.profile }}
+    RetroItemization.StrictData = {{ ternary 1 0 .Values.gameserver_ac.retroItemization.strictData }}
+  mod_legacy_talents.conf: |
+    [worldserver]
+    LegacyTalents.Enable = {{ ternary 1 0 .Values.gameserver_ac.retroProgression.enabled }}
+    LegacyTalents.Profile = {{ default "WotLK" .Values.gameserver_ac.retroProgression.profile }}
+    LegacyTalents.StrictData = {{ ternary 1 0 .Values.gameserver_ac.retroProgression.strictData }}
+    LegacyTalents.EnforceSpellCasts = {{ ternary 1 0 .Values.gameserver_ac.retroProgression.enforceSpellCasts }}
+    LegacyTalents.RemoveUnavailableSpellsOnLogin = {{ ternary 1 0 .Values.gameserver_ac.retroProgression.removeUnavailableSpellsOnLogin }}
