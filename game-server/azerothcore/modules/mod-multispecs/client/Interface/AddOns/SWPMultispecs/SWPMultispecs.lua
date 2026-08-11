@@ -5,21 +5,32 @@ local thirdSpecSelected = false
 local thirdSpecTab
 local unlockButton
 local talentUIReady = false
+
+-- Public ownership marker for talent-frame presentation addons.  The launcher
+-- may merge all client files into one addon, so IsAddOnLoaded cannot reliably
+-- identify this module.
+SWPMultispecsEnabled = true
 local refreshingThirdSpec = false
 local thirdSpecTalents = {}
 local thirdSpecFreePoints = 0
+local function SendMultispecRequest(command)
+    -- The PTR's 3.3.5 client silently drops self-directed addon whispers.
+    -- Send a private control whisper instead.  The server hook recognizes and
+    -- consumes it before chat delivery, so no command or chat text is shown.
+    SendChatMessage("SWPMS " .. string.upper(command), "WHISPER", nil, UnitName("player"))
+end
 local nativeGetTalentInfo = GetTalentInfo
 local nativeGetActiveTalentGroup = GetActiveTalentGroup
 local nativeGetUnspentTalentPoints = GetUnspentTalentPoints
 local nativeGetTalentTabInfo = GetTalentTabInfo
 local nativeGetTalentPrereqs = GetTalentPrereqs
-SWPMultispecsVersion = "1.2.0"
+SWPMultispecsVersion = "1.2.6"
 
 StaticPopupDialogs["SWP_MULTISPECS_BUY_DUAL"] = {
     text = "Purchase dual specialization for %d gold?",
     button1 = YES,
     button2 = NO,
-    OnAccept = function() SendChatMessage(".multispec buydual", "SAY") end,
+    OnAccept = function() SendMultispecRequest("buydual") end,
     timeout = 0,
     whileDead = false,
     hideOnEscape = true,
@@ -180,6 +191,7 @@ local function SkinThirdSpecTab()
             thirdSpecTab:StyleButton(nil, true)
             thirdSpecTab:GetNormalTexture():SetInside()
             thirdSpecTab:GetNormalTexture():SetTexCoord(unpack(E.TexCoords))
+            thirdSpecTab:GetNormalTexture():Show()
             thirdSpecTab.SWPElvUISkinned = true
         end
     end
@@ -205,6 +217,42 @@ local function SetThirdSpecTabShown(shown)
         thirdSpecTab:Show()
     else
         thirdSpecTab:Hide()
+    end
+end
+
+local function UpdateSpecTabVisibility()
+    -- TBC presentation addons can hide the Wrath specialization controls
+    -- before this file creates its custom frames.  Reassert the visibility
+    -- owned by multispec whenever state or the talent frame is refreshed.
+    if PlayerSpecTab1 then
+        PlayerSpecTab1:Show()
+    end
+    if PlayerSpecTab2 then
+        if unlockedSpecs >= 2 then
+            PlayerSpecTab2:Show()
+        else
+            PlayerSpecTab2:Hide()
+        end
+    end
+    -- Always expose the third selector. Unlock authorization remains entirely
+    -- server-side, so an unentitled client cannot activate it; hiding it made
+    -- the control depend on a status message that can arrive before ChatFrame
+    -- installs its filter during login.
+    SetThirdSpecTabShown(true)
+end
+
+local function SyncNativeSpecState()
+    -- The server writes the authorized slot count into the native talents
+    -- packet. Do not leave the UI at its file-load default while waiting for
+    -- an auxiliary status response that may have arrived before ChatFrame was
+    -- ready to filter it.
+    local nativeCount = GetNumTalentGroups and GetNumTalentGroups(false, false)
+    local nativeActive = nativeGetActiveTalentGroup and nativeGetActiveTalentGroup(false)
+    if nativeCount and nativeCount > unlockedSpecs then
+        unlockedSpecs = nativeCount
+    end
+    if nativeActive and nativeActive >= 1 then
+        currentSpec = nativeActive
     end
 end
 
@@ -248,8 +296,32 @@ local function UpdateThirdSpecIcon()
     thirdSpecTab:GetNormalTexture():SetTexture(bestIcon or "Interface\\Icons\\Ability_Marksmanship")
 end
 
+local function ApplyStableTalentLayout()
+    if not PlayerTalentFrame then return end
+
+    PlayerTalentFrame:SetSize(384, 512)
+    if PlayerTalentFrameTab4 then PlayerTalentFrameTab4:Hide() end
+    if PlayerTalentFramePreviewBar then PlayerTalentFramePreviewBar:Hide() end
+    PlayerTalentFramePointsBar:SetPoint("BOTTOM", PlayerTalentFrame, "BOTTOM", 0, 81)
+
+    PlayerTalentFrameActivateButton:ClearAllPoints()
+    PlayerTalentFrameActivateButton:SetPoint("TOP", PlayerTalentFrame, "TOP", 0, -42)
+    PlayerTalentFrameStatusFrame:ClearAllPoints()
+    PlayerTalentFrameStatusFrame:SetPoint("TOP", PlayerTalentFrame, "TOP", 0, -46)
+
+    PlayerTalentFrameSpentPointsText:ClearAllPoints()
+    PlayerTalentFrameSpentPointsText:SetPoint("BOTTOMLEFT", PlayerTalentFrame,
+        "BOTTOMLEFT", 16, 87)
+    PlayerTalentFrameSpentPointsText:SetJustifyH("LEFT")
+    PlayerTalentFrameTalentPointsText:ClearAllPoints()
+    PlayerTalentFrameTalentPointsText:SetPoint("BOTTOMRIGHT", PlayerTalentFrame,
+        "BOTTOMRIGHT", -61, 87)
+    PlayerTalentFrameTalentPointsText:SetJustifyH("RIGHT")
+end
+
 local function UpdateSpecControls()
     if not talentUIReady or not PlayerTalentFrame:IsShown() then return end
+    UpdateSpecTabVisibility()
     local displayedSpec = thirdSpecSelected and 3 or PlayerTalentFrame.talentGroup
     local isActive = displayedSpec == currentSpec
     if isActive then
@@ -275,6 +347,9 @@ local function UpdateSpecControls()
         PlayerTalentFramePointsBar:SetPoint("BOTTOM", PlayerTalentFramePreviewBar, "TOP", 0, -4)
     else
         PlayerTalentFramePreviewBar:Hide()
+        -- The scroll frame is anchored to this structural bar. Keep Blizzard's
+        -- native offset so talent nodes stop above the independently anchored
+        -- spent/unspent labels.
         PlayerTalentFramePointsBar:SetPoint("BOTTOM", PlayerTalentFrame, "BOTTOM", 0, 81)
     end
 
@@ -321,6 +396,7 @@ local function UpdateSpecControls()
             end
         end
     end
+    ApplyStableTalentLayout()
 end
 
 local function RefreshThirdSpec()
@@ -351,11 +427,6 @@ local function RefreshThirdSpec()
 end
 
 local function SelectThirdSpec()
-    if unlockedSpecs < 3 then
-        UIErrorsFrame:AddMessage("Triple specialization is not unlocked yet.", 1, 0.1, 0.1)
-        return
-    end
-
     thirdSpecSelected = true
     PlayerSpecTab_OnClick(PlayerSpecTab2)
     thirdSpecSelected = true
@@ -366,6 +437,7 @@ end
 local function CreateThirdSpecTab()
     if talentUIReady or not PlayerTalentFrame or not PlayerSpecTab2 then return end
     talentUIReady = true
+    SyncNativeSpecState()
 
     thirdSpecTab = CreateFrame("CheckButton", "PlayerSpecTab4", PlayerTalentFrame, "PlayerSpecTabTemplate")
     thirdSpecTab:SetID(4)
@@ -391,7 +463,7 @@ local function CreateThirdSpecTab()
         if unlockedSpecs < 2 then
             StaticPopup_Show("SWP_MULTISPECS_BUY_DUAL", dualSpecPrice)
         else
-            SendChatMessage(".multispec buytriple", "SAY")
+            SendMultispecRequest("buytriple")
         end
     end)
     unlockButton:SetScript("OnEnter", function(self)
@@ -412,30 +484,81 @@ local function CreateThirdSpecTab()
     SkinThirdSpecTab()
     UpdateSpecTabStates()
 
-    PlayerSpecTab3:ClearAllPoints()
-    PlayerSpecTab3:SetPoint("TOPLEFT", thirdSpecTab, "BOTTOMLEFT", 0, -39)
+    -- PlayerSpecTab3 is not present in every 3.3.5 TalentUI build.  It is a
+    -- secondary Blizzard control (not our third specialization, which is
+    -- PlayerSpecTab4), so its absence must not abort multispec initialization.
+    if PlayerSpecTab3 then
+        PlayerSpecTab3:ClearAllPoints()
+        PlayerSpecTab3:SetPoint("TOPLEFT", thirdSpecTab, "BOTTOMLEFT", 0, -39)
+    end
 
     PlayerSpecTab1:HookScript("PreClick", function() thirdSpecSelected = false end)
     PlayerSpecTab2:HookScript("PreClick", function() thirdSpecSelected = false end)
-    PlayerSpecTab3:HookScript("PreClick", function() thirdSpecSelected = false end)
+    if PlayerSpecTab3 then
+        PlayerSpecTab3:HookScript("PreClick", function() thirdSpecSelected = false end)
+    end
     PlayerSpecTab1:HookScript("PostClick", UpdateSpecControls)
     PlayerSpecTab2:HookScript("PostClick", UpdateSpecControls)
-    PlayerSpecTab3:HookScript("PostClick", UpdateSpecControls)
+    if PlayerSpecTab3 then
+        PlayerSpecTab3:HookScript("PostClick", UpdateSpecControls)
+    end
 
     PlayerTalentFrame:HookScript("OnShow", function()
+        SyncNativeSpecState()
         if currentSpec == 3 and unlockedSpecs >= 3 then
             thirdSpecSelected = true
             RefreshThirdSpec()
         end
+        -- The TBC presentation hook runs first and may have hidden Wrath's
+        -- specialization controls before this addon advertised ownership.
+        -- Restore the server-authorized tabs and activation state every time
+        -- the frame opens, including the primary and secondary specs.
+        UpdateSpecTabVisibility()
+        UpdateUnlockButton()
+        UpdateSpecControls()
     end)
 
-    local nativeActivate = PlayerTalentFrameActivateButton:GetScript("OnClick")
-    PlayerTalentFrameActivateButton:SetScript("OnClick", function(self, ...)
-        if thirdSpecSelected then
-            SendChatMessage(".multispec switch 3", "SAY")
-        elseif nativeActivate then
-            nativeActivate(self, ...)
+    PlayerTalentFrameActivateButton:SetScript("OnClick", function()
+        local displayedSpec = thirdSpecSelected and 3 or
+            (PlayerTalentFrame.talentGroup or currentSpec)
+        if displayedSpec == currentSpec then
+            return
         end
+        if thirdSpecSelected then
+            SendMultispecRequest("switch 3")
+        else
+            -- The TBC client data profile cannot reliably start Wrath's native
+            -- activation spell. Use the private addon transport for both
+            -- native groups and the extended third group; no chat is emitted.
+            SendMultispecRequest("switch " .. displayedSpec)
+        end
+    end)
+    PlayerTalentFrameActivateButton:ClearAllPoints()
+    PlayerTalentFrameActivateButton:SetPoint("TOP", PlayerTalentFrame,
+        "TOP", 0, -42)
+    PlayerTalentFrameActivateButton:SetFrameLevel(PlayerTalentFrame:GetFrameLevel() + 10)
+    PlayerTalentFrameActivateButton:SetWidth(160)
+    PlayerTalentFrameActivateButton:SetText("Activate Specialization")
+
+    -- The active-status message replaces the activation button for the active
+    -- specialization. Spent points are positioned separately by the TBC UI.
+    PlayerTalentFrameStatusFrame:ClearAllPoints()
+    PlayerTalentFrameStatusFrame:SetPoint("TOP", PlayerTalentFrame,
+        "TOP", 0, -46)
+    ApplyStableTalentLayout()
+
+    if PlayerTalentFrameTab4 then
+        PlayerTalentFrameTab4:HookScript("OnShow", function(self)
+            self:Hide()
+        end)
+    end
+
+    local layoutElapsed = 0
+    PlayerTalentFrame:HookScript("OnUpdate", function(_, elapsed)
+        layoutElapsed = layoutElapsed + elapsed
+        if layoutElapsed < 0.05 then return end
+        layoutElapsed = 0
+        ApplyStableTalentLayout()
     end)
 
     PlayerTalentFrameActivateButton:HookScript("OnEvent", function(self)
@@ -464,7 +587,8 @@ local function CreateThirdSpecTab()
         RefreshThirdSpec()
         UpdateSpecControls()
     end)
-    SetThirdSpecTabShown(unlockedSpecs >= 3)
+    SetThirdSpecTabShown(true)
+    UpdateSpecTabVisibility()
     UpdateUnlockButton()
     UpdateThirdSpecIcon()
 end
@@ -501,7 +625,8 @@ ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, message)
     dualPurchased, tripleEntitled = boughtDual == "1", ownsTriple == "1"
     if thirdSpecTab then
         UpdateSpecTabStates()
-        SetThirdSpecTabShown(unlockedSpecs >= 3)
+        UpdateSpecTabVisibility()
+        SetThirdSpecTabShown(true)
         UpdateUnlockButton()
         if unlockedSpecs < 3 and thirdSpecSelected then
             thirdSpecSelected = false
@@ -537,7 +662,7 @@ events:SetScript("OnEvent", function(self, event, addonName)
         -- The event is fired after the client receives the completed reset (or
         -- learn) result. Ask for a new authoritative snapshot here as well as
         -- relying on server hooks, covering trainer resets immediately.
-        SendChatMessage(".multispec status", "SAY")
+        SendMultispecRequest("status")
     end
     if event == "PLAYER_LOGIN" or event == "PLAYER_LEVEL_UP" or
         event == "ACTIVE_TALENT_GROUP_CHANGED" then
@@ -546,7 +671,7 @@ events:SetScript("OnEvent", function(self, event, addonName)
             eventFrame.elapsed = eventFrame.elapsed + elapsed
             if eventFrame.elapsed >= 1 then
                 eventFrame:SetScript("OnUpdate", nil)
-                SendChatMessage(".multispec status", "SAY")
+                SendMultispecRequest("status")
             end
         end)
     end

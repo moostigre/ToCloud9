@@ -178,6 +178,7 @@ gameserver_ac:
     strictData: true
   multispecs:
     enabled: true
+    adminUnlockAll: true
     dualSpecLevel: 10
     dualSpecPriceGold: 50
     tripleSpecLevel: 40

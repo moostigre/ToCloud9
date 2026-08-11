@@ -24,3 +24,12 @@ CREATE TABLE IF NOT EXISTS `account_multispec_entitlement` (
   `source` VARCHAR(64) NOT NULL DEFAULT 'website-shop',
   PRIMARY KEY (`account_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Preserve dual specialization for characters created before purchases became
+-- character-bound. The stored talent-group count is authoritative evidence
+-- that the character already owned the second slot.
+INSERT INTO `character_multispec_unlock` (`guid`, `dual_spec`, `purchased_at`)
+SELECT `guid`, 1, NULL
+FROM `characters`
+WHERE `talentGroupsCount` >= 2
+ON DUPLICATE KEY UPDATE `dual_spec` = GREATEST(`dual_spec`, 1);

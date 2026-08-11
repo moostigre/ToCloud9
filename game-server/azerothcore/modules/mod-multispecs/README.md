@@ -17,6 +17,8 @@ AzerothCore 3.3.5a server and its patched-client distribution.
 matching the first two tabs and using the existing activation controls.
 - Adds an in-client purchase confirmation for dual spec and a website-shop
   status button for triple spec.
+- Grants all three slots to GM/admin accounts when `Multispecs.AdminUnlockAll`
+  is enabled, allowing PTR testing without fabricated shop transactions.
 
 Client-owned files are stored under `client/Interface/AddOns/SWPMultispecs`,
 following the same layout as `mod-instances-difficulties`. Reserved `dbc/` and

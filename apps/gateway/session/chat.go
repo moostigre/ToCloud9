@@ -61,6 +61,12 @@ func (s *GameSession) HandleChatMessage(ctx context.Context, p *packet.Packet) e
 	case ChatTypeWhisper:
 		to = r.String()
 		msg = r.String()
+		// Gameplay control whispers must reach the worldserver instead of being
+		// consumed by the external chat service.
+		if shouldForwardGameplayWhisper(lang, to, msg, s.character.Name) {
+			s.worldSocket.SendPacket(p)
+			return nil
+		}
 		res, err := s.chatServiceClient.SendWhisperMessage(ctx, &pbChat.SendWhisperMessageRequest{
 			Api:          root.Ver,
 			RealmID:      root.RealmID,
@@ -201,6 +207,14 @@ func (s *GameSession) HandleChatMessage(ctx context.Context, p *packet.Packet) e
 	}
 
 	return nil
+}
+
+func shouldForwardGameplayWhisper(lang uint32, to, msg, characterName string) bool {
+	if lang == ^uint32(0) && strings.HasPrefix(msg, "SWPIDIFF\t") {
+		return true
+	}
+
+	return strings.EqualFold(to, characterName) && strings.HasPrefix(msg, "SWPMS ")
 }
 
 func (s *GameSession) HandleEventIncomingWhisperMessage(ctx context.Context, e *eBroadcaster.Event) error {

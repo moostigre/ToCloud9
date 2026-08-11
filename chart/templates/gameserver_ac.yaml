@@ -189,6 +189,7 @@ data:
   mod_multispecs.conf: |
     [worldserver]
     Multispecs.Enable = {{ ternary 1 0 .Values.gameserver_ac.multispecs.enabled }}
+    Multispecs.AdminUnlockAll = {{ ternary 1 0 .Values.gameserver_ac.multispecs.adminUnlockAll }}
     Multispecs.DualSpecLevel = {{ default 10 .Values.gameserver_ac.multispecs.dualSpecLevel | int }}
     Multispecs.DualSpecPriceGold = {{ default 50 .Values.gameserver_ac.multispecs.dualSpecPriceGold | int }}
     Multispecs.TripleSpecLevel = {{ default 40 .Values.gameserver_ac.multispecs.tripleSpecLevel | int }}

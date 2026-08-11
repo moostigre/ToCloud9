@@ -10,8 +10,10 @@
 #include "Player.h"
 #include "ScriptMgr.h"
 #include "SpellDefines.h"
+#include "WorldSession.h"
 
 #include <algorithm>
+#include <charconv>
 #include <unordered_set>
 
 using namespace Acore::ChatCommands;
@@ -24,12 +26,14 @@ struct MultispecsConfig
     uint8 dualSpecLevel = 10;
     uint8 tripleSpecLevel = 10;
     uint32 dualSpecPriceGold = 50;
+    bool adminUnlockAll = true;
 
     void Load()
     {
         enabled = sConfigMgr->GetOption<bool>("Multispecs.Enable", true);
         dualSpecLevel = std::max<uint8>(1, sConfigMgr->GetOption<uint8>("Multispecs.DualSpecLevel", 10));
         dualSpecPriceGold = sConfigMgr->GetOption<uint32>("Multispecs.DualSpecPriceGold", 50);
+        adminUnlockAll = sConfigMgr->GetOption<bool>("Multispecs.AdminUnlockAll", true);
         tripleSpecLevel = std::max<uint8>(dualSpecLevel,
             sConfigMgr->GetOption<uint8>("Multispecs.TripleSpecLevel", 10));
     }
@@ -67,9 +71,19 @@ uint32 GetDualSpecPriceCopper()
 
 void SendThirdSpecTalents(Player* player)
 {
+    uint32 spentPoints = 0;
+    for (auto const& [spellId, talent] : player->GetTalentMap())
+    {
+        if (!talent || talent->State == PLAYERSPELL_REMOVED || !(talent->specMask & (1 << 2)))
+            continue;
+        if (TalentSpellPos const* pos = GetTalentSpellPos(spellId))
+            spentPoints += pos->rank + 1;
+    }
+    uint32 availablePoints = player->CalculateTalentsPoints();
+    uint32 freePoints = availablePoints > spentPoints ? availablePoints - spentPoints : 0;
+
     ChatHandler chat(player->GetSession());
-    chat.PSendSysMessage("MULTISPECS_TALENTS_BEGIN 3 {}", player->GetActiveSpec() == 2 ?
-        player->GetFreeTalentPoints() : 0);
+    chat.PSendSysMessage("MULTISPECS_TALENTS_BEGIN 3 {}", freePoints);
 
     std::string payload;
     for (auto const& [spellId, talent] : player->GetTalentMap())
@@ -101,6 +115,12 @@ uint8 GetUnlockedSpecCount(Player const* player)
 {
     if (!config.enabled || !player)
         return 1;
+
+    // Administrators need a deterministic way to test every specialization on
+    // PTR/administration characters without creating fake shop transactions.
+    if (config.adminUnlockAll && player->GetSession() &&
+        player->GetSession()->GetSecurity() > SEC_PLAYER)
+        return 3;
 
     bool dualPurchased = HasDualSpecPurchase(player);
     if (!dualPurchased || player->GetLevel() < config.dualSpecLevel)
@@ -137,6 +157,11 @@ bool CanSwitch(Player const* player)
         !player->IsBeingTeleported();
 }
 
+void CastSpecActivation(Player* player, uint8 displayIndex)
+{
+    player->CastCustomSpell(63645, SPELLVALUE_BASE_POINT0, displayIndex, player, false);
+}
+
 class MultispecsWorldScript final : public WorldScript
 {
 public:
@@ -155,11 +180,13 @@ public:
         { PLAYERHOOK_ON_LOGIN, PLAYERHOOK_ON_LEVEL_CHANGED,
             PLAYERHOOK_ON_AFTER_SPEC_SLOT_CHANGED,
             PLAYERHOOK_ON_PLAYER_LEARN_TALENTS, PLAYERHOOK_ON_TALENTS_RESET,
-            PLAYERHOOK_ON_UPDATE }) { }
+            PLAYERHOOK_ON_UPDATE, PLAYERHOOK_ON_BEFORE_SEND_CHAT_MESSAGE }) { }
 
     void OnPlayerLogin(Player* player) override
     {
         ApplyUnlocks(player);
+        SendState(player);
+        SendThirdSpecTalents(player);
     }
 
     void OnPlayerLevelChanged(Player* player, uint8 /*oldLevel*/) override
@@ -193,6 +220,75 @@ public:
     {
         if (pendingTalentRefreshes.erase(player->GetGUID().GetCounter()) != 0)
             SendThirdSpecTalents(player);
+    }
+
+    void OnPlayerBeforeSendChatMessage(Player* player, uint32& type, uint32& lang,
+        std::string& message) override
+    {
+        bool addonRequest = lang == LANG_ADDON && message.starts_with("SWPMS\t");
+        bool controlWhisper = type == CHAT_MSG_WHISPER && lang != LANG_ADDON &&
+            message.starts_with("SWPMS ");
+        if (!addonRequest && !controlWhisper)
+            return;
+
+        // Copy the request before replacing the packet body below.  A
+        // string_view into message becomes invalid as soon as message is
+        // assigned and previously made every command comparison undefined.
+        std::string request(message.substr(6));
+        if (controlWhisper)
+        {
+            // CHAT_MSG_ADDON has no delivery branch in HandleMessagechatOpcode.
+            // Changing the type here consumes the private control packet after
+            // this hook without echoing it into the player's chat frame.
+            type = CHAT_MSG_ADDON;
+            message = "SWPMS ACK";
+        }
+        else
+            message = "SWPMS\tACK";
+
+        LOG_INFO("module", "mod-multispecs: received UI request '{}' from {} (GUID {})",
+            request, player->GetName(), player->GetGUID().GetCounter());
+
+        if (request == "STATUS")
+        {
+            ApplyUnlocks(player);
+            SendState(player);
+            SendThirdSpecTalents(player);
+            return;
+        }
+
+        constexpr std::string_view switchPrefix = "SWITCH ";
+        if (!request.starts_with(switchPrefix))
+            return;
+
+        uint32 displayIndex = 0;
+        std::string_view indexText(request.data() + switchPrefix.size(),
+            request.size() - switchPrefix.size());
+        auto [end, error] = std::from_chars(indexText.data(), indexText.data() + indexText.size(), displayIndex);
+        ApplyUnlocks(player);
+        uint8 unlocked = GetUnlockedSpecCount(player);
+        if (error != std::errc() || end != indexText.data() + indexText.size() ||
+            displayIndex < 1 || displayIndex > unlocked || displayIndex > player->GetSpecsCount())
+        {
+            ChatHandler(player->GetSession()).SendSysMessage("That specialization is locked.");
+            return;
+        }
+        if (!CanSwitch(player))
+        {
+            ChatHandler(player->GetSession()).SendSysMessage(
+                "You must be alive, out of combat, and standing in the world to switch specs.");
+            return;
+        }
+        if (player->GetActiveSpec() + 1 == displayIndex)
+        {
+            SendState(player);
+            SendThirdSpecTalents(player);
+            return;
+        }
+
+        CastSpecActivation(player, displayIndex);
+        LOG_INFO("module", "mod-multispecs: addon bridge started switch cast for {} (GUID {}) to spec {}",
+            player->GetName(), player->GetGUID().GetCounter(), displayIndex);
     }
 
 private:
@@ -245,11 +341,8 @@ private:
             return true;
         }
 
-        // Reuse the client's native five-second specialization activation spell,
-        // overriding its effect value so the core selects talent group three.
-        CustomSpellValues values;
-        values.AddSpellMod(SPELLVALUE_BASE_POINT0, displayIndex);
-        return player->CastCustomSpell(63645, values, player, TRIGGERED_NONE) == SPELL_CAST_OK;
+        CastSpecActivation(player, displayIndex);
+        return true;
     }
 
     static bool HandleStatus(ChatHandler* handler)

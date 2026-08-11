@@ -9,6 +9,10 @@ Multispecs.DualSpecLevel = 10
 # Price of dual specialization in gold. The default is 50 gold.
 Multispecs.DualSpecPriceGold = 50
 
+# Grants all three specialization slots to GM/admin accounts for PTR and
+# operational testing. Normal player purchase and entitlement gates are unchanged.
+Multispecs.AdminUnlockAll = 1
+
 # Characters may use their third talent group at this level after dual spec has
 # been purchased and the character owns the website-shop entitlement.
 # Must be greater than or equal to DualSpecLevel.
