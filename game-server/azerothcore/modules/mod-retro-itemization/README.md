@@ -2,11 +2,10 @@
 
 Expansion-specific itemization profiles for an AzerothCore 3.3.5a server.
 
-The module preserves AzerothCore's WotLK `item_template` as its canonical
-baseline. At worldserver startup it can replace the compacted base-stat array
-and historical passive on-equip spell slots of selected items with an imported
-Vanilla or TBC profile. WotLK remains the default and performs no database
-queries or template mutation.
+The module stores complete Vanilla, TBC, and WotLK snapshots side by side. At
+worldserver startup it replaces the compacted base-stat array and all five item
+spell slots. Complete slots prevent values from a previously selected expansion
+from surviving an era switch.
 
 The 3.3.5a core and client protocol retain the legacy item stat identifiers:
 
@@ -23,7 +22,7 @@ produce incorrect caster items.
 
 - `RetroItemization.Profile`: `Vanilla`, `TBC`, or `WotLK`
 - exact compacted `StatsCount` and stat-slot replacement
-- sparse passive on-equip spell replacement, including cooldown data
+- complete item-spell replacement, including empty slots and cooldown data
 - complete dataset validation before template mutation
 - imported item-count verification against profile metadata
 - strict startup failure for incomplete or invalid imported data
@@ -49,14 +48,57 @@ Generate large artifacts on the data partition:
 ```bash
 python3 tools/generate_profile.py \
   --profile vanilla --source-revision e65e48e \
-  --wotlk-spell-dbc /data/tc9-gameserver-data/dbc/Spell.dbc \
   --output /data/ToCloud9/retro-itemization/generated/vanilla.sql
 
 python3 tools/generate_profile.py \
   --profile tbc --source-revision a38dbd07f5ee604162507119b6c890dac5d01e05 \
-  --wotlk-spell-dbc /data/tc9-gameserver-data/dbc/Spell.dbc \
   --output /data/ToCloud9/retro-itemization/generated/tbc.sql
+
+python3 tools/generate_profile.py \
+  --profile wotlk --source-revision pinned \
+  --output /data/ToCloud9/retro-itemization/generated/wotlk.sql
 ```
+
+Import all three SQL files. Switching `RetroItemization.Profile` and restarting
+then supports `Vanilla -> TBC -> WotLK` without stale values.
+
+## Patch item_template directly
+
+For physical `item_template` changes, import all three profiles and run:
+
+```bash
+python3 tools/apply_profile.py --container ac-database --database acore_world --profile tbc
+python3 tools/apply_profile.py --container ac-database --database acore_world --profile vanilla
+python3 tools/apply_profile.py --container ac-database --database acore_world --profile wotlk
+```
+
+Each operation is transactional. The WotLK profile is the rollback snapshot;
+restart worldserver after applying a profile.
+
+## Generate reversible client fixes
+
+```bash
+python3 tools/build_client_patch.py --profile tbc \
+  --historical-dbc /reference/tbc/DBFilesClient/Spell.dbc \
+  --profile-sql /generated/tbc.sql \
+  --wotlk-dbc /reference/wotlk/DBFilesClient/Spell.dbc \
+  --server-dbc-output /generated/server-dbc/tbc/Spell.dbc \
+  --output /generated/patch-T-tbc.MPQ
+
+python3 tools/build_client_patch.py --profile wotlk \
+  --wotlk-dbc /reference/wotlk/DBFilesClient/Spell.dbc \
+  --output /generated/patch-T-wotlk.MPQ
+```
+
+Use the same command with `--profile vanilla` and its 1.12.1 Spell.dbc. The
+WotLK patch is a clean baseline, so the launcher can select exactly one era.
+Legacy healing auras are translated to WotLK's separate healing and damage
+effects; spell 18033 becomes 46 healing / 16 damage and receives the combined
+historical tooltip used by Band of Halos (item 29373).
+
+Install the file written by `--server-dbc-output` in the selected world's DBC
+directory as well as selecting the matching client MPQ. This keeps gameplay
+effects and client tooltips on the same profile.
 
 ## Installation
 
@@ -68,8 +110,7 @@ Do not enable `Vanilla` or `TBC` until an importer has populated a complete
 reviewed profile. With `StrictData = 1`, an empty or incomplete profile stops
 startup rather than silently mixing expansion values.
 
-The three profiles coexist in the same world database; configuration selects
-which copy is loaded without overwriting AzerothCore's WotLK rows. One
+The three profiles coexist in the same world database. One
 worldserver process can load only one profile. Simultaneous Vanilla and TBC
 realms require separate worldserver processes configured for their respective
 profiles. Client DBC selection occurs in the launcher before WoW starts.

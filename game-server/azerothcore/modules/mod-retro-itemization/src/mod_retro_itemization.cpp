@@ -182,6 +182,10 @@ std::unordered_map<uint32, ItemStatOverride> LoadOverrides()
             if (!item.present[index])
                 DataError("item " + std::to_string(entry) + " is missing stat slot " +
                     std::to_string(index + 1));
+        for (uint8 index = 0; index < MaxItemSpells; ++index)
+            if (!item.spellPresent[index])
+                DataError("item " + std::to_string(entry) + " is missing spell slot " +
+                    std::to_string(index + 1));
     }
 
     return overrides;
@@ -189,7 +193,7 @@ std::unordered_map<uint32, ItemStatOverride> LoadOverrides()
 
 void ApplyOverrides()
 {
-    if (!config.enabled || config.profile == "wotlk")
+    if (!config.enabled)
         return;
 
     std::unordered_map<uint32, ItemStatOverride> overrides = LoadOverrides();
@@ -224,8 +228,7 @@ void ApplyOverrides()
         target->second->StatsCount = override.statsCount;
         std::copy(override.stats.begin(), override.stats.end(), target->second->ItemStat);
         for (uint8 index = 0; index < MaxItemSpells; ++index)
-            if (override.spellPresent[index])
-                target->second->Spells[index] = override.spells[index];
+            target->second->Spells[index] = override.spells[index];
         ++applied;
     }
 

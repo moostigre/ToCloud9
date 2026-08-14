@@ -21,12 +21,11 @@ Against the WotLK rows with matching IDs:
 | Any raw base-stat slot differs | 776 | 1,585 |
 | Any item spell ID differs | 2,922 | 830 |
 | Any spell-slot field differs | 15,688 | 1,306 |
-Generated normalized data contains 11,318
-Vanilla and 23,668 TBC non-zero stat rows. Passive on-equip spells are imported
-sparsely; unrelated consumable, teaching, and on-hit spell slots remain on the
-validated WotLK baseline. The generator also rejects historical spell IDs that
-do not exist in the deployed 3.3.5 `Spell.dbc`, preventing invalid server/client
-references until a later spell-porting layer supplies compatible records.
+Generated normalized data contains 11,318 Vanilla and 23,668 TBC non-zero stat
+rows. All five item spell slots are imported, including empty slots, so an era
+switch cannot retain a later-expansion spell. The client converter ports
+historical passive records into the 3.3.5 layout and can append records missing
+from the WotLK DBC; records unavailable in the historical client are reported.
 
 ## Server and client boundary
 

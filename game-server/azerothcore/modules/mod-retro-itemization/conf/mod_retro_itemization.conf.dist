@@ -1,11 +1,13 @@
 [worldserver]
 
 # Enables expansion-specific item-template overrides.
-RetroItemization.Enable = 0
+RetroItemization.Enable = 1
 
 # Supported profiles: WotLK, TBC, Vanilla.
-# WotLK always preserves the normal AzerothCore item templates.
-RetroItemization.Profile = WotLK
+# WotLK loads the captured WotLK profile when enabled, making an explicit
+# Vanilla -> TBC -> WotLK transition deterministic. Disable the module to use
+# the untouched item_template baseline instead.
+RetroItemization.Profile = TBC
 
 # Refuse to start with missing items, incomplete stat slots, invalid stat
 # types, or a profile that has no imported item rows.
