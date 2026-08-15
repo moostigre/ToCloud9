@@ -50,14 +50,9 @@ RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
 
 RUN mkdir repo
 RUN cd repo && git init && \
-    git remote add origin https://github.com/walkline/azerothcore-wotlk.git && \
-    git fetch --depth 1 origin dbfeb1d45daf1f09bf2bdb43f86e0009da2fbcf2  && \
+    git remote add origin https://github.com/azerothcore/azerothcore-wotlk.git && \
+    git fetch --depth 1 origin 0c0a3327926e4664c86ac4a5322a1596ddf4fdaa && \
     git checkout FETCH_HEAD
-
-COPY game-server/azerothcore/patches /tmp/azerothcore-patches
-RUN cd /repo && \
-    git apply --check --unidiff-zero /tmp/azerothcore-patches/*.patch && \
-    git apply --unidiff-zero /tmp/azerothcore-patches/*.patch
 
 COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
 COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
