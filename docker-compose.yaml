@@ -41,7 +41,7 @@ services:
     command: >
       sh -c "curl -L https://raw.githubusercontent.com/walkline/azerothcore-wotlk/cluster-mode/src/server/apps/worldserver/worldserver.conf.dist -o /config/worldserver.conf &&
       mkdir -p /data && cd /data &&
-      curl -L -o data.zip https://github.com/wowgaming/client-data/releases/download/v16/data.zip &&
+      curl -L -o data.zip https://github.com/wowgaming/client-data/releases/download/v20.0/Data.zip &&
       unzip -q data.zip &&
       rm -f data.zip"
     profiles:
