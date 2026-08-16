@@ -1,0 +1,3 @@
+# Paths relative to this module's client/Interface/AddOns directory.
+# They are installed inside Interface/AddOns/SWP and loaded by SWP.toc.
+SWPMultispecs/SWPMultispecs.lua

@@ -1,0 +1,6 @@
+DELETE FROM `npc_vendor`
+WHERE `item` BETWEEN 900000 AND 999999;
+
+DELETE FROM `item_template`
+WHERE `entry` BETWEEN 900000 AND 999999
+  AND `name` LIKE 'Tiny %';

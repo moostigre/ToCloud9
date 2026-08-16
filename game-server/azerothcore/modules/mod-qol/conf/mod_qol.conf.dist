@@ -1,0 +1,52 @@
+[worldserver]
+
+Qol.Enable = 1
+
+# Hearthstone cooldown in minutes (the WotLK default is 30).
+Qol.HearthstoneCooldownMinutes = 15
+
+# Run-speed rate while eligible, alive, out of combat, unmounted, and not on a taxi.
+# Applied only while alive, outdoors, unmounted, out of combat, outside PvP,
+# and not stealthed. The client patch tooltip is generated from this value.
+Qol.OutOfCombatRunSpeed = 1.20
+
+# Permanent buff used to show when the out-of-combat bonus is active.
+# Spell 80861 is the custom Sprint aura supplied by the SWP client patch.
+# Its speed amount is replaced with Qol.OutOfCombatRunSpeed by the module.
+# Set to 0 to disable the out-of-combat movement bonus.
+Qol.OutOfCombatRunIndicatorSpell = 80861
+
+# Seconds after PvP damage before the movement aura may return.
+# The aura is also disabled in battlegrounds, arenas, and while dueling.
+Qol.OutOfCombatRunPvPLockoutSeconds = 30
+
+# Only items that already stack are enlarged. The final size is capped.
+Qol.StackSizeMultiplier = 5
+Qol.MaximumStackSize = 1000
+
+# Percentage of additional slots given to every existing bag.
+# Results are rounded up and capped at the WotLK client/core limit of 36.
+# Example: an 11-slot bag gains 25% and becomes a 14-slot bag.
+Qol.BagSlotIncreasePercent = 25.0
+
+# Price multiplier for vendor items that directly teach/summon a mount.
+Qol.MountItemPriceMultiplier = 0.25
+
+# Duration in minutes of buffs granted by food and scroll consumables.
+# Set either option to 0 to preserve AzerothCore's original durations.
+# Examples: 60 = 1 hour, 120 = 2 hours.
+Qol.FoodBuffDurationMinutes = 60
+Qol.ScrollBuffDurationMinutes = 60
+
+# At level 10, characters automatically learn Initiate Riding and receive this
+# amount of Riding skill. Tiny racial mounts require this skill value.
+Qol.InitiateRidingSpell = 80860
+Qol.InitiateRidingSkillValue = 50
+
+# This setting is consumed by the remaining taxi-only core patch.
+Qol.TaxiSpeedMultiplier = 10.0
+
+# Native AzerothCore settings used by this QoL bundle.
+MailDeliveryDelay = 0
+# Minimum level at which the stock trainer gossip permits purchasing dual spec.
+MinDualSpecLevel = 10

@@ -1,0 +1,124 @@
+diff --git a/src/server/game/Entities/Player/PlayerUpdates.cpp b/src/server/game/Entities/Player/PlayerUpdates.cpp
+index 313c545c3..844723960 100644
+--- a/src/server/game/Entities/Player/PlayerUpdates.cpp
++++ b/src/server/game/Entities/Player/PlayerUpdates.cpp
+@@ -2208,12 +2208,15 @@ void Player::UpdateSpecCount(uint8 count)
+         for (ActionButtonList::iterator itr = m_actionButtons.begin();
+              itr != m_actionButtons.end(); ++itr)
+         {
+-            stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_CHAR_ACTION);
+-            stmt->SetData(0, GetGUID().GetCounter());
+-            stmt->SetData(1, 1);
+-            stmt->SetData(2, itr->first);
+-            stmt->SetData(3, itr->second.GetAction());
+-            stmt->SetData(4, uint8(itr->second.GetType()));
+-            trans->Append(stmt);
++            for (uint8 spec = curCount; spec < count; ++spec)
++            {
++                stmt = CharacterDatabase.GetPreparedStatement(CHAR_INS_CHAR_ACTION);
++                stmt->SetData(0, GetGUID().GetCounter());
++                stmt->SetData(1, spec);
++                stmt->SetData(2, itr->first);
++                stmt->SetData(3, itr->second.GetAction());
++                stmt->SetData(4, uint8(itr->second.GetType()));
++                trans->Append(stmt);
++            }
+         }
+     }
+     // Delete spec data for removed spec.
+diff --git a/src/server/shared/SharedDefines.h b/src/server/shared/SharedDefines.h
+index b04393be6..fc590d5ba 100644
+--- a/src/server/shared/SharedDefines.h
++++ b/src/server/shared/SharedDefines.h
+@@ -660,6 +660,6 @@ enum SpellAttr7
+ };
+
+-#define MAX_TALENT_SPECS        2
++#define MAX_TALENT_SPECS        4
+ #define MAX_GLYPH_SLOT_INDEX    6
+
+ // Custom values
+diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
+index 35dd8dc99..5419ae0cd 100644
+--- a/src/server/game/Entities/Player/Player.cpp
++++ b/src/server/game/Entities/Player/Player.cpp
+@@ -15339,15 +15339,13 @@ void Player::ActivateSpec(uint8 spec)
+         if (itr->second->State == PLAYERSPELL_REMOVED)
+             continue;
+
+-        // xinef: remove all active talent auras
+-        if (!(itr->second->specMask & GetActiveSpecMask()))
+-            continue;
+-
++        // Remove every talent aura before applying the destination group. This
++        // also cleans up a stale aura from a previously desynchronized group.
+         _removeTalentAurasAndSpells(itr->first);
+
+         // pussywizard: was => isn't
+-        if (!itr->second->IsInSpec(spec) && !itr->second->inSpellBook)
++        if (!itr->second->IsInSpec(spec) && !itr->second->inSpellBook)
+             SendLearnPacket(itr->first, false);
+
+         removedSpecAuras.insert(itr->first);
+     }
+diff --git a/src/server/game/Handlers/SkillHandler.cpp b/src/server/game/Handlers/SkillHandler.cpp
+index e07ab93d2..57a4c1540 100644
+--- a/src/server/game/Handlers/SkillHandler.cpp
++++ b/src/server/game/Handlers/SkillHandler.cpp
+@@ -15,6 +15,7 @@
+  */
+
++#include "DBCStores.h"
+ #include "Log.h"
+ #include "Opcodes.h"
+ #include "Player.h"
+ #include "SpellMgr.h"
+@@ -27,6 +28,22 @@ void WorldSession::HandleLearnTalentOpcode(WorldPacket& recvData)
+     uint32 talent_id, requested_rank;
+     recvData >> talent_id >> requested_rank;
+
++    // The 3.3.5a client only owns two talent-group buffers. For extended
++    // server slots, retain its native CMSG_LEARN_TALENT packet but derive the
++    // requested next rank from the active server group instead of the aliased
++    // client group.
++    if (_player->GetActiveSpec() >= 2)
++    {
++        requested_rank = 0;
++        if (TalentEntry const* talent = sTalentStore.LookupEntry(talent_id))
++            for (uint8 rank = 0; rank < MAX_TALENT_RANK; ++rank)
++                if (talent->RankID[rank] && _player->HasTalent(talent->RankID[rank], _player->GetActiveSpec()))
++                {
++                    requested_rank = rank + 1;
++                    break;
++                }
++    }
++
+     _player->LearnTalent(talent_id, requested_rank);
+     _player->SendTalentsInfoData(false);
+ }
+diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
+index 5419ae0cd..c7a3c1000 100644
+--- a/src/server/game/Entities/Player/Player.cpp
++++ b/src/server/game/Entities/Player/Player.cpp
+@@ -3873,7 +3873,19 @@ bool Player::resetTalents(bool noResetCost)
+     // xinef: get max available talent points amount
+     uint32 talentPointsForLevel = CalculateTalentsPoints();
+
+-    // xinef: no talent points are used, return
+-    if (m_usedTalentCount == 0)
++    // Extended talent groups are not represented reliably by the stock
++    // two-group used-point cache. Inspect the authoritative active talent mask
++    // before deciding that there is nothing to reset.
++    bool hasActiveTalents = false;
++    for (auto const& [spellId, talent] : m_talents)
++    {
++        (void)spellId;
++        if (talent->State != PLAYERSPELL_REMOVED && (talent->specMask & GetActiveSpecMask()))
++        {
++            hasActiveTalents = true;
++            break;
++        }
++    }
++    if (m_usedTalentCount == 0 && !hasActiveTalents)
+         return false;
+     m_usedTalentCount = 0;

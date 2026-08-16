@@ -1,0 +1,8 @@
+{
+  "generator": "swp-dbcpatch",
+  "config": "conf/mod_qol.conf.dist",
+  "records": {
+    "Spell.dbc": [80860, 80861],
+    "SkillLineAbility.dbc": [60000]
+  }
+}

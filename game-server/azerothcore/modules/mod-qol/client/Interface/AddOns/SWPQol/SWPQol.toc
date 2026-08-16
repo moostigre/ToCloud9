@@ -1,0 +1,8 @@
+## Interface: 30300
+## Title: SWP Quality of Life
+## Notes: Client notifications for mod-qol.
+## Author: SWP
+## Version: 1.0.0
+## SavedVariablesPerCharacter: SWPInitiateRidingSeen
+
+SWPQol.lua

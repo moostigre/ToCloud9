@@ -1,0 +1,21 @@
+diff --git a/src/server/game/Movement/MovementGenerators/WaypointMovementGenerator.cpp b/src/server/game/Movement/MovementGenerators/WaypointMovementGenerator.cpp
+index c40d5a0..e0a1a7c 100644
+--- a/src/server/game/Movement/MovementGenerators/WaypointMovementGenerator.cpp
++++ b/src/server/game/Movement/MovementGenerators/WaypointMovementGenerator.cpp
+@@ -19,6 +19,7 @@
+ #include "Creature.h"
+ #include "CreatureAI.h"
+ #include "CreatureGroups.h"
++#include "Config.h"
+ #include "GameTime.h"
+ #include "MapMgr.h"
+ #include "MoveSpline.h"
+@@ -707,6 +708,7 @@ void FlightPathMovementGenerator::DoReset(Player* player)
+     }
+     init.SetFirstPointId(GetCurrentNode());
+     init.SetFly();
+-    init.SetVelocity(PLAYER_FLIGHT_SPEED);
++    float const taxiSpeedMultiplier = std::max(0.1f, sConfigMgr->GetOption<float>("Qol.TaxiSpeedMultiplier", 1.0f));
++    init.SetVelocity(32.0f * taxiSpeedMultiplier);
+     init.Launch();
+ }
