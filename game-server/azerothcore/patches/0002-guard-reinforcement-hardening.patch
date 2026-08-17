@@ -1,10 +1,7 @@
-diff --git a/data/sql/updates/db_world/2026_08_16_00.sql b/data/sql/updates/pending_db_world/rev_1770000000000000000.sql
-similarity index 98%
-rename from data/sql/updates/db_world/2026_08_16_00.sql
-rename to data/sql/updates/pending_db_world/rev_1770000000000000000.sql
+diff --git a/data/sql/updates/db_world/2026_08_16_00.sql b/data/sql/updates/db_world/2026_08_16_00.sql
 index f0fb2c3a..42604776 100644
 --- a/data/sql/updates/db_world/2026_08_16_00.sql
-+++ b/data/sql/updates/pending_db_world/rev_1770000000000000000.sql
++++ b/data/sql/updates/db_world/2026_08_16_00.sql
 @@ -1,5 +1,5 @@
  -- Guard reinforcement posts used when guards, civilians, or explicitly configured
 --- creatures detect or engage a hostile player.
