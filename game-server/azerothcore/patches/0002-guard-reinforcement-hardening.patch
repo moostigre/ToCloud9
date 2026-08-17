@@ -1,0 +1,384 @@
+diff --git a/data/sql/updates/db_world/2026_08_16_00.sql b/data/sql/updates/pending_db_world/rev_1770000000000000000.sql
+similarity index 98%
+rename from data/sql/updates/db_world/2026_08_16_00.sql
+rename to data/sql/updates/pending_db_world/rev_1770000000000000000.sql
+index f0fb2c3a..42604776 100644
+--- a/data/sql/updates/db_world/2026_08_16_00.sql
++++ b/data/sql/updates/pending_db_world/rev_1770000000000000000.sql
+@@ -1,5 +1,5 @@
+ -- Guard reinforcement posts used when guards, civilians, or explicitly configured
+--- creatures detect or engage a hostile player.
++-- creatures engage a hostile player.
+ CREATE TABLE `guard_reinforcement` (
+   `areaId` int unsigned NOT NULL,
+   `team` tinyint unsigned NOT NULL COMMENT '0 Alliance, 1 Horde, 2 neutral',
+diff --git a/src/server/game/AI/CreatureAI.cpp b/src/server/game/AI/CreatureAI.cpp
+index 597f8f25..f16f2a3d 100644
+--- a/src/server/game/AI/CreatureAI.cpp
++++ b/src/server/game/AI/CreatureAI.cpp
+@@ -19,7 +19,6 @@
+ #include "AreaBoundary.h"
+ #include "Creature.h"
+ #include "CreatureAIImpl.h"
+-#include "GuardReinforcementMgr.h"
+ #include "CreatureGroups.h"
+ #include "CreatureTextMgr.h"
+ #include "GameObjectAI.h"
+@@ -174,7 +173,6 @@ void CreatureAI::MoveInLineOfSight_Safe(Unit* who)
+         return;
+     }
+     m_MoveInLineOfSight_locked = true;
+-    sGuardReinforcementMgr->TrySummonGuard(me, who);
+     MoveInLineOfSight(who);
+     m_MoveInLineOfSight_locked = false;
+ }
+diff --git a/src/server/game/AI/GuardReinforcementMgr.cpp b/src/server/game/AI/GuardReinforcementMgr.cpp
+index c25fd791..dba1f92f 100644
+--- a/src/server/game/AI/GuardReinforcementMgr.cpp
++++ b/src/server/game/AI/GuardReinforcementMgr.cpp
+@@ -19,7 +19,6 @@
+ #include "Random.h"
+ #include "SharedDefines.h"
+ #include <algorithm>
+-#include <chrono>
+ #include <mutex>
+ #include <unordered_map>
+ #include <unordered_set>
+@@ -31,14 +30,6 @@ namespace
+     constexpr std::chrono::minutes ChargeRechargeTime{ 1 };
+     constexpr uint32 GuardOutOfCombatDespawnTime = 30 * IN_MILLISECONDS;
+ 
+-    struct GuardPost
+-    {
+-        uint32 guardEntry = 0;
+-        uint8 charges = MaxCharges;
+-        std::chrono::steady_clock::time_point nextUse;
+-        std::chrono::steady_clock::time_point lastRecharge = std::chrono::steady_clock::now();
+-    };
+-
+     using GuardPostKey = uint64;
+ 
+     GuardPostKey MakeKey(uint32 areaId, TeamId team)
+@@ -46,12 +37,77 @@ namespace
+         return (uint64(areaId) << 8) | uint8(team);
+     }
+ 
+-    std::unordered_map<GuardPostKey, GuardPost> GuardPosts;
+-    std::unordered_map<ObjectGuid, ObjectGuid> ActiveReinforcements;
++    std::unordered_map<GuardPostKey, GuardReinforcementPost> GuardPosts;
++    GuardReinforcementTracker ActiveReinforcements;
+     std::unordered_set<uint32> ExplicitCallers;
+     std::mutex GuardPostLock;
+ }
+ 
++GuardReinforcementPost::GuardReinforcementPost(uint32 guardEntry, std::chrono::steady_clock::time_point now)
++    : _guardEntry(guardEntry), _charges(MaxCharges), _lastRecharge(now)
++{
++}
++
++std::optional<GuardReinforcementReservation> GuardReinforcementPost::Reserve(
++    std::chrono::steady_clock::time_point now)
++{
++    if (now - _lastRecharge >= ChargeRechargeTime)
++    {
++        uint64 recovered = std::chrono::duration_cast<std::chrono::minutes>(now - _lastRecharge).count();
++        _charges = std::min<uint64>(MaxCharges, uint64(_charges) + recovered);
++        _lastRecharge += ChargeRechargeTime * recovered;
++    }
++
++    if (!_charges || now < _nextUse)
++        return std::nullopt;
++
++    --_charges;
++    GuardReinforcementReservation reservation{ _guardEntry, _nextUse, now + UseCooldown };
++    _nextUse = reservation.reservedUntil;
++    return reservation;
++}
++
++void GuardReinforcementPost::Refund(GuardReinforcementReservation const& reservation)
++{
++    _charges = std::min<uint8>(MaxCharges, _charges + 1);
++    if (_nextUse == reservation.reservedUntil)
++        _nextUse = reservation.previousNextUse;
++}
++
++std::optional<ObjectGuid> GuardReinforcementTracker::GetGuard(ObjectGuid caller) const
++{
++    if (auto itr = _guardsByCaller.find(caller); itr != _guardsByCaller.end())
++        return itr->second;
++    return std::nullopt;
++}
++
++void GuardReinforcementTracker::Track(ObjectGuid caller, ObjectGuid guard)
++{
++    Remove(caller);
++    _guardsByCaller[caller] = guard;
++    _callersByGuard[guard] = caller;
++}
++
++void GuardReinforcementTracker::Remove(ObjectGuid creature)
++{
++    if (auto itr = _guardsByCaller.find(creature); itr != _guardsByCaller.end())
++    {
++        _callersByGuard.erase(itr->second);
++        _guardsByCaller.erase(itr);
++    }
++    if (auto itr = _callersByGuard.find(creature); itr != _callersByGuard.end())
++    {
++        _guardsByCaller.erase(itr->second);
++        _callersByGuard.erase(itr);
++    }
++}
++
++void GuardReinforcementTracker::Clear()
++{
++    _guardsByCaller.clear();
++    _callersByGuard.clear();
++}
++
+ GuardReinforcementMgr* GuardReinforcementMgr::instance()
+ {
+     static GuardReinforcementMgr instance;
+@@ -64,7 +120,7 @@ void GuardReinforcementMgr::LoadGuardReinforcements()
+ 
+     std::lock_guard<std::mutex> lock(GuardPostLock);
+     GuardPosts.clear();
+-    ActiveReinforcements.clear();
++    ActiveReinforcements.Clear();
+     ExplicitCallers.clear();
+ 
+     if (QueryResult result = WorldDatabase.Query("SELECT areaId, team, guardEntry FROM guard_reinforcement"))
+@@ -88,9 +144,7 @@ void GuardReinforcementMgr::LoadGuardReinforcements()
+                 continue;
+             }
+ 
+-            GuardPost post;
+-            post.guardEntry = guardEntry;
+-            GuardPosts.emplace(MakeKey(areaId, TeamId(teamValue)), post);
++            GuardPosts.emplace(MakeKey(areaId, TeamId(teamValue)), GuardReinforcementPost(guardEntry));
+         } while (result->NextRow());
+     }
+ 
+@@ -127,17 +181,17 @@ bool GuardReinforcementMgr::TrySummonGuard(Creature* caller, Unit* enemy)
+     if (!player || !caller->IsHostileTo(player))
+         return false;
+ 
+-    uint32 guardEntry = 0;
++    GuardPostKey postKey = 0;
++    std::optional<GuardReinforcementReservation> reservation;
+     {
+         std::lock_guard<std::mutex> lock(GuardPostLock);
+ 
+-        auto activeItr = ActiveReinforcements.find(caller->GetGUID());
+-        if (activeItr != ActiveReinforcements.end())
++        if (std::optional<ObjectGuid> activeGuard = ActiveReinforcements.GetGuard(caller->GetGUID()))
+         {
+-            if (ObjectAccessor::GetCreature(*caller, activeItr->second))
++            if (ObjectAccessor::GetCreature(*caller, *activeGuard))
+                 return false;
+ 
+-            ActiveReinforcements.erase(activeItr);
++            ActiveReinforcements.Remove(caller->GetGUID());
+         }
+ 
+         TeamId guardTeam = player->GetTeamId() == TEAM_ALLIANCE ? TEAM_HORDE : TEAM_ALLIANCE;
+@@ -147,36 +201,40 @@ bool GuardReinforcementMgr::TrySummonGuard(Creature* caller, Unit* enemy)
+         if (itr == GuardPosts.end())
+             return false;
+ 
+-        GuardPost& post = itr->second;
+-        auto now = std::chrono::steady_clock::now();
+-        if (now - post.lastRecharge >= ChargeRechargeTime)
+-        {
+-            uint64 recovered = std::chrono::duration_cast<std::chrono::minutes>(now - post.lastRecharge).count();
+-            post.charges = std::min<uint64>(MaxCharges, uint64(post.charges) + recovered);
+-            post.lastRecharge += ChargeRechargeTime * recovered;
+-        }
+-
+-        if (!post.charges || now < post.nextUse)
++        reservation = itr->second.Reserve(std::chrono::steady_clock::now());
++        if (!reservation)
+             return false;
+-
+-        --post.charges;
+-        post.nextUse = now + UseCooldown;
+-        guardEntry = post.guardEntry;
++        postKey = itr->first;
+     }
+ 
+     Position spawnPosition = caller->GetNearPosition(5.0f, frand(0.0f, 2.0f * float(M_PI)));
+-    if (Creature* guard = caller->SummonCreature(guardEntry, spawnPosition, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, GuardOutOfCombatDespawnTime))
++    if (Creature* guard = caller->SummonCreature(reservation->guardEntry, spawnPosition, TEMPSUMMON_TIMED_DESPAWN_OUT_OF_COMBAT, GuardOutOfCombatDespawnTime))
+     {
+         {
+             std::lock_guard<std::mutex> lock(GuardPostLock);
+-            ActiveReinforcements[caller->GetGUID()] = guard->GetGUID();
++            ActiveReinforcements.Track(caller->GetGUID(), guard->GetGUID());
+         }
+ 
+         guard->AI()->AttackStart(player);
+         return true;
+     }
+ 
++    {
++        std::lock_guard<std::mutex> lock(GuardPostLock);
++        if (auto itr = GuardPosts.find(postKey); itr != GuardPosts.end())
++            itr->second.Refund(*reservation);
++    }
++
+     LOG_ERROR("entities.unit", "Failed to summon guard reinforcement {} for creature {} in area {}.",
+-        guardEntry, caller->GetGUID().ToString(), caller->GetAreaId());
++        reservation->guardEntry, caller->GetGUID().ToString(), caller->GetAreaId());
+     return false;
+ }
++
++void GuardReinforcementMgr::OnCreatureRemoved(Creature* creature)
++{
++    if (!creature)
++        return;
++
++    std::lock_guard<std::mutex> lock(GuardPostLock);
++    ActiveReinforcements.Remove(creature->GetGUID());
++}
+diff --git a/src/server/game/AI/GuardReinforcementMgr.h b/src/server/game/AI/GuardReinforcementMgr.h
+index e0f61fd2..d86c593a 100644
+--- a/src/server/game/AI/GuardReinforcementMgr.h
++++ b/src/server/game/AI/GuardReinforcementMgr.h
+@@ -11,10 +11,51 @@
+ #define ACORE_GUARD_REINFORCEMENT_MGR_H
+ 
+ #include "Define.h"
++#include "ObjectGuid.h"
++
++#include <chrono>
++#include <optional>
++#include <unordered_map>
+ 
+ class Creature;
+ class Unit;
+ 
++struct GuardReinforcementReservation
++{
++    uint32 guardEntry;
++    std::chrono::steady_clock::time_point previousNextUse;
++    std::chrono::steady_clock::time_point reservedUntil;
++};
++
++class GuardReinforcementPost
++{
++public:
++    explicit GuardReinforcementPost(uint32 guardEntry,
++        std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
++    std::optional<GuardReinforcementReservation> Reserve(std::chrono::steady_clock::time_point now);
++    void Refund(GuardReinforcementReservation const& reservation);
++    uint8 GetCharges() const { return _charges; }
++
++private:
++    uint32 _guardEntry;
++    uint8 _charges;
++    std::chrono::steady_clock::time_point _nextUse;
++    std::chrono::steady_clock::time_point _lastRecharge;
++};
++
++class GuardReinforcementTracker
++{
++public:
++    std::optional<ObjectGuid> GetGuard(ObjectGuid caller) const;
++    void Track(ObjectGuid caller, ObjectGuid guard);
++    void Remove(ObjectGuid creature);
++    void Clear();
++
++private:
++    std::unordered_map<ObjectGuid, ObjectGuid> _guardsByCaller;
++    std::unordered_map<ObjectGuid, ObjectGuid> _callersByGuard;
++};
++
+ class GuardReinforcementMgr
+ {
+ public:
+@@ -22,6 +63,7 @@ public:
+ 
+     void LoadGuardReinforcements();
+     bool TrySummonGuard(Creature* caller, Unit* enemy);
++    void OnCreatureRemoved(Creature* creature);
+ 
+ private:
+     GuardReinforcementMgr() = default;
+diff --git a/src/server/game/Entities/Creature/Creature.cpp b/src/server/game/Entities/Creature/Creature.cpp
+index 7d6df460..e0db946a 100644
+--- a/src/server/game/Entities/Creature/Creature.cpp
++++ b/src/server/game/Entities/Creature/Creature.cpp
+@@ -339,6 +339,7 @@ void Creature::RemoveFromWorld()
+ {
+     if (IsInWorld())
+     {
++        sGuardReinforcementMgr->OnCreatureRemoved(this);
+         sScriptMgr->OnCreatureRemoveWorld(this);
+ 
+         if (GetZoneScript())
+diff --git a/src/test/server/game/AI/GuardReinforcementMgrTest.cpp b/src/test/server/game/AI/GuardReinforcementMgrTest.cpp
+new file mode 100644
+index 00000000..1a7cc758
+--- /dev/null
++++ b/src/test/server/game/AI/GuardReinforcementMgrTest.cpp
+@@ -0,0 +1,60 @@
++/*
++ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#include "GuardReinforcementMgr.h"
++#include "gtest/gtest.h"
++
++namespace
++{
++using Clock = std::chrono::steady_clock;
++
++TEST(GuardReinforcementPostTest, EnforcesCooldownAndRechargesCharges)
++{
++    Clock::time_point start;
++    GuardReinforcementPost post(68, start);
++
++    EXPECT_TRUE(post.Reserve(start));
++    EXPECT_FALSE(post.Reserve(start + std::chrono::seconds(9)));
++    EXPECT_TRUE(post.Reserve(start + std::chrono::seconds(10)));
++    for (uint8 charge = 2; charge < 10; ++charge)
++        EXPECT_TRUE(post.Reserve(start + std::chrono::seconds(charge * 10)));
++    EXPECT_EQ(post.GetCharges(), 1);
++    EXPECT_TRUE(post.Reserve(start + std::chrono::seconds(100)));
++    EXPECT_EQ(post.GetCharges(), 0);
++    EXPECT_FALSE(post.Reserve(start + std::chrono::seconds(110)));
++    EXPECT_TRUE(post.Reserve(start + std::chrono::seconds(120)));
++}
++
++TEST(GuardReinforcementPostTest, RefundRestoresChargeAndCooldown)
++{
++    Clock::time_point start;
++    GuardReinforcementPost post(68, start);
++    auto reservation = post.Reserve(start);
++
++    ASSERT_TRUE(reservation);
++    post.Refund(*reservation);
++    EXPECT_EQ(post.GetCharges(), 10);
++    EXPECT_TRUE(post.Reserve(start));
++}
++
++TEST(GuardReinforcementTrackerTest, RemovesCallerAndGuardRelationships)
++{
++    ObjectGuid caller(uint64(1));
++    ObjectGuid guard(uint64(2));
++    GuardReinforcementTracker tracker;
++
++    tracker.Track(caller, guard);
++    EXPECT_EQ(tracker.GetGuard(caller), guard);
++    tracker.Remove(guard);
++    EXPECT_FALSE(tracker.GetGuard(caller));
++    tracker.Track(caller, guard);
++    tracker.Remove(caller);
++    EXPECT_FALSE(tracker.GetGuard(caller));
++}
++}

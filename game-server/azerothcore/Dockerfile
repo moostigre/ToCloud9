@@ -54,6 +54,11 @@ RUN cd repo && git init && \
     git fetch --depth 1 origin dbfeb1d45daf1f09bf2bdb43f86e0009da2fbcf2  && \
     git checkout FETCH_HEAD
 
+# Guard reinforcement system from the pinned AzerothCore bugfix branch.
+RUN cd /repo && \
+    git fetch --depth 4 https://github.com/moostigre/azerothcore-wotlk.git ad10279469940a679ccebd0ce9de9e9ee6f87949 && \
+    git diff --binary FETCH_HEAD~3 FETCH_HEAD | git apply --3way
+
 COPY game-server/azerothcore/patches /tmp/azerothcore-patches
 RUN cd /repo && \
     git apply --check --unidiff-zero /tmp/azerothcore-patches/*.patch && \
