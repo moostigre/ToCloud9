@@ -1,0 +1,17 @@
+{
+  "default": "ptr",
+  "realms": [
+    {
+      "id": "ptr",
+      "name": "PTR",
+      "realmlist": "163.172.51.144:32767",
+      "realm_name": "PTR"
+    },
+    {
+      "id": "swp",
+      "name": "SWP",
+      "realmlist": "163.172.51.144:32765",
+      "realm_name": "SWP"
+    }
+  ]
+}

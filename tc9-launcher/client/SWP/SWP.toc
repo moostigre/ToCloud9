@@ -1,0 +1,10 @@
+## Interface: 30300
+## Title: SWP
+## Notes: Client UI support for SWP custom content.
+## Author: SWP
+## Version: 0.6.5
+## SavedVariables: SWPInstanceDifficultyDB, SWPMultispecsDB
+## SavedVariablesPerCharacter: SWPInitiateRidingSeen
+
+SWP.lua
+SWPMultispecs.lua

@@ -1,0 +1,247 @@
+[
+  {
+    "item_id": 2414,
+    "spell_id": 472,
+    "item_name": "Pinto Bridle",
+    "vendor_id": 384,
+    "vendor_name": "Katie Hunter"
+  },
+  {
+    "item_id": 5655,
+    "spell_id": 6648,
+    "item_name": "Chestnut Mare Bridle",
+    "vendor_id": 384,
+    "vendor_name": "Katie Hunter"
+  },
+  {
+    "item_id": 5656,
+    "spell_id": 458,
+    "item_name": "Brown Horse Bridle",
+    "vendor_id": 384,
+    "vendor_name": "Katie Hunter"
+  },
+  {
+    "item_id": 5864,
+    "spell_id": 6777,
+    "item_name": "Gray Ram",
+    "vendor_id": 1261,
+    "vendor_name": "Veron Amberstill"
+  },
+  {
+    "item_id": 5872,
+    "spell_id": 6899,
+    "item_name": "Brown Ram",
+    "vendor_id": 1261,
+    "vendor_name": "Veron Amberstill"
+  },
+  {
+    "item_id": 5873,
+    "spell_id": 6898,
+    "item_name": "White Ram",
+    "vendor_id": 1261,
+    "vendor_name": "Veron Amberstill"
+  },
+  {
+    "item_id": 1132,
+    "spell_id": 580,
+    "item_name": "Horn of the Timber Wolf",
+    "vendor_id": 3362,
+    "vendor_name": "Ogunaro Wolfrunner"
+  },
+  {
+    "item_id": 5665,
+    "spell_id": 6653,
+    "item_name": "Horn of the Dire Wolf",
+    "vendor_id": 3362,
+    "vendor_name": "Ogunaro Wolfrunner"
+  },
+  {
+    "item_id": 5668,
+    "spell_id": 6654,
+    "item_name": "Horn of the Brown Wolf",
+    "vendor_id": 3362,
+    "vendor_name": "Ogunaro Wolfrunner"
+  },
+  {
+    "item_id": 46099,
+    "spell_id": 64658,
+    "item_name": "Horn of the Black Wolf",
+    "vendor_id": 3362,
+    "vendor_name": "Ogunaro Wolfrunner"
+  },
+  {
+    "item_id": 15277,
+    "spell_id": 18989,
+    "item_name": "Gray Kodo",
+    "vendor_id": 3685,
+    "vendor_name": "Harb Clawhoof"
+  },
+  {
+    "item_id": 15290,
+    "spell_id": 18990,
+    "item_name": "Brown Kodo",
+    "vendor_id": 3685,
+    "vendor_name": "Harb Clawhoof"
+  },
+  {
+    "item_id": 46100,
+    "spell_id": 64657,
+    "item_name": "White Kodo",
+    "vendor_id": 3685,
+    "vendor_name": "Harb Clawhoof"
+  },
+  {
+    "item_id": 8629,
+    "spell_id": 10793,
+    "item_name": "Reins of the Striped Nightsaber",
+    "vendor_id": 4730,
+    "vendor_name": "Lelanai"
+  },
+  {
+    "item_id": 8631,
+    "spell_id": 8394,
+    "item_name": "Reins of the Striped Frostsaber",
+    "vendor_id": 4730,
+    "vendor_name": "Lelanai"
+  },
+  {
+    "item_id": 8632,
+    "spell_id": 10789,
+    "item_name": "Reins of the Spotted Frostsaber",
+    "vendor_id": 4730,
+    "vendor_name": "Lelanai"
+  },
+  {
+    "item_id": 47100,
+    "spell_id": 66847,
+    "item_name": "Reins of the Striped Dawnsaber",
+    "vendor_id": 4730,
+    "vendor_name": "Lelanai"
+  },
+  {
+    "item_id": 13331,
+    "spell_id": 17462,
+    "item_name": "Red Skeletal Horse",
+    "vendor_id": 4731,
+    "vendor_name": "Zachariah Post"
+  },
+  {
+    "item_id": 13332,
+    "spell_id": 17463,
+    "item_name": "Blue Skeletal Horse",
+    "vendor_id": 4731,
+    "vendor_name": "Zachariah Post"
+  },
+  {
+    "item_id": 13333,
+    "spell_id": 17464,
+    "item_name": "Brown Skeletal Horse",
+    "vendor_id": 4731,
+    "vendor_name": "Zachariah Post"
+  },
+  {
+    "item_id": 46308,
+    "spell_id": 64977,
+    "item_name": "Black Skeletal Horse",
+    "vendor_id": 4731,
+    "vendor_name": "Zachariah Post"
+  },
+  {
+    "item_id": 8588,
+    "spell_id": 8395,
+    "item_name": "Whistle of the Emerald Raptor",
+    "vendor_id": 7952,
+    "vendor_name": "Zjolnir"
+  },
+  {
+    "item_id": 8591,
+    "spell_id": 10796,
+    "item_name": "Whistle of the Turquoise Raptor",
+    "vendor_id": 7952,
+    "vendor_name": "Zjolnir"
+  },
+  {
+    "item_id": 8592,
+    "spell_id": 10799,
+    "item_name": "Whistle of the Violet Raptor",
+    "vendor_id": 7952,
+    "vendor_name": "Zjolnir"
+  },
+  {
+    "item_id": 8563,
+    "spell_id": 10873,
+    "item_name": "Red Mechanostrider",
+    "vendor_id": 7955,
+    "vendor_name": "Milli Featherwhistle"
+  },
+  {
+    "item_id": 8595,
+    "spell_id": 10969,
+    "item_name": "Blue Mechanostrider",
+    "vendor_id": 7955,
+    "vendor_name": "Milli Featherwhistle"
+  },
+  {
+    "item_id": 13321,
+    "spell_id": 17453,
+    "item_name": "Green Mechanostrider",
+    "vendor_id": 7955,
+    "vendor_name": "Milli Featherwhistle"
+  },
+  {
+    "item_id": 13322,
+    "spell_id": 17454,
+    "item_name": "Unpainted Mechanostrider",
+    "vendor_id": 7955,
+    "vendor_name": "Milli Featherwhistle"
+  },
+  {
+    "item_id": 28927,
+    "spell_id": 34795,
+    "item_name": "Red Hawkstrider",
+    "vendor_id": 16264,
+    "vendor_name": "Winaestra"
+  },
+  {
+    "item_id": 29220,
+    "spell_id": 35020,
+    "item_name": "Blue Hawkstrider",
+    "vendor_id": 16264,
+    "vendor_name": "Winaestra"
+  },
+  {
+    "item_id": 29221,
+    "spell_id": 35022,
+    "item_name": "Black Hawkstrider",
+    "vendor_id": 16264,
+    "vendor_name": "Winaestra"
+  },
+  {
+    "item_id": 29222,
+    "spell_id": 35018,
+    "item_name": "Purple Hawkstrider",
+    "vendor_id": 16264,
+    "vendor_name": "Winaestra"
+  },
+  {
+    "item_id": 28481,
+    "spell_id": 34406,
+    "item_name": "Brown Elekk",
+    "vendor_id": 17584,
+    "vendor_name": "Torallius the Pack Handler"
+  },
+  {
+    "item_id": 29743,
+    "spell_id": 35711,
+    "item_name": "Purple Elekk",
+    "vendor_id": 17584,
+    "vendor_name": "Torallius the Pack Handler"
+  },
+  {
+    "item_id": 29744,
+    "spell_id": 35710,
+    "item_name": "Gray Elekk",
+    "vendor_id": 17584,
+    "vendor_name": "Torallius the Pack Handler"
+  }
+]
