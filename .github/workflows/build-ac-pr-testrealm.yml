@@ -75,7 +75,6 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/tc9-ac-pr-dbimport:pr-${{ steps.pr.outputs.number }}-${{ steps.pr.outputs.sha }}
 
       - name: Publish signed catalogue entry
-        if: ${{ secrets.TESTREALM_CATALOG_URL != '' && secrets.TESTREALM_CATALOG_SECRET != '' }}
         env:
           URL: ${{ secrets.TESTREALM_CATALOG_URL }}
           SECRET: ${{ secrets.TESTREALM_CATALOG_SECRET }}
@@ -84,6 +83,10 @@ jobs:
           RUNTIME_DIGEST: ${{ steps.runtime.outputs.digest }}
           IMPORTER_DIGEST: ${{ steps.importer.outputs.digest }}
         run: |
+          if [ -z "$URL" ] || [ -z "$SECRET" ]; then
+            echo "Catalogue callback is not configured; skipping."
+            exit 0
+          fi
           body="$(jq -nc --argjson pr "$PR_NUMBER" --arg sha "$SHA" \
             --arg image "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr@${RUNTIME_DIGEST}" \
             --arg importer "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr-dbimport@${IMPORTER_DIGEST}" \
