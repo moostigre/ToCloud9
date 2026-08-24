@@ -50,6 +50,7 @@ RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
 
 ARG AC_REPOSITORY=https://github.com/azerothcore/azerothcore-wotlk.git
 ARG AC_REF=ca8e6d78dee182fbe4c840dbc24a577c25844593
+ARG AC_BUILD_TYPE=RelWithDebInfo
 
 RUN mkdir repo
 RUN cd repo && git init && \
@@ -86,7 +87,7 @@ RUN cd bin && \
         -DTOOLS_BUILD=db-only \
         -DSCRIPTS=static \
         -DSERVERS=1 \
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_BUILD_TYPE="${AC_BUILD_TYPE}" \
         -DCMAKE_INSTALL_PREFIX=/repo/bin \
         -DBUILD_TESTING=0
 
@@ -94,8 +95,8 @@ RUN cp deps/libsidecar/libsidecar.so /usr/lib/libsidecar.so
 
 WORKDIR /repo/bin
 
-RUN cmake --build . --config "RelWithDebInfo" -j $(($(nproc) + 1))
-RUN cmake --install . --config "RelWithDebInfo"
+RUN cmake --build . --config "${AC_BUILD_TYPE}" -j $(($(nproc) + 1))
+RUN cmake --install . --config "${AC_BUILD_TYPE}"
 
 FROM ubuntu:22.04 AS db-import
 

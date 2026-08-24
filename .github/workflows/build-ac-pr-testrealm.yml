@@ -59,8 +59,11 @@ jobs:
           target: gameserver
           platforms: linux/amd64
           push: true
-          build-args: AC_REF=${{ steps.pr.outputs.sha }}
+          build-args: |
+            AC_REF=${{ steps.pr.outputs.sha }}
+            AC_BUILD_TYPE=Release
           tags: ghcr.io/${{ github.repository_owner }}/tc9-ac-pr:pr-${{ steps.pr.outputs.number }}-${{ steps.pr.outputs.sha }}
+          cache-from: type=gha,scope=ac-testrealm-trusted
 
       - name: Build and publish database importer
         id: importer
@@ -71,8 +74,11 @@ jobs:
           target: db-import
           platforms: linux/amd64
           push: true
-          build-args: AC_REF=${{ steps.pr.outputs.sha }}
+          build-args: |
+            AC_REF=${{ steps.pr.outputs.sha }}
+            AC_BUILD_TYPE=Release
           tags: ghcr.io/${{ github.repository_owner }}/tc9-ac-pr-dbimport:pr-${{ steps.pr.outputs.number }}-${{ steps.pr.outputs.sha }}
+          cache-from: type=gha,scope=ac-testrealm-trusted
 
       - name: Publish signed catalogue entry
         env:
