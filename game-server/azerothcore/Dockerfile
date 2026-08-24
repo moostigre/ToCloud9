@@ -48,10 +48,14 @@ RUN apt-get install -yq git clang cmake make gcc g++ libmysqlclient-dev libssl-d
 RUN update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
 RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
 
+ARG AC_REPOSITORY=https://github.com/azerothcore/azerothcore-wotlk.git
+ARG AC_REF=ca8e6d78dee182fbe4c840dbc24a577c25844593
+
 RUN mkdir repo
 RUN cd repo && git init && \
-    git remote add origin https://github.com/walkline/azerothcore-wotlk.git && \
-    git fetch --depth 1 origin dbfeb1d45daf1f09bf2bdb43f86e0009da2fbcf2  && \
+    test "$AC_REPOSITORY" = "https://github.com/azerothcore/azerothcore-wotlk.git" && \
+    git remote add origin "$AC_REPOSITORY" && \
+    git fetch --depth 1 origin "$AC_REF" && \
     git checkout FETCH_HEAD
 
 COPY game-server/azerothcore/patches /tmp/azerothcore-patches
