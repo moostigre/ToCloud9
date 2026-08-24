@@ -1,5 +1,5 @@
 name: Build AzerothCore PR test realm
-run-name: Build PR #${{ inputs.pr_number || github.event.client_payload.pr_number }}
+run-name: "Build PR #${{ inputs.pr_number || github.event.client_payload.pr_number }}"
 
 on:
   workflow_dispatch:
