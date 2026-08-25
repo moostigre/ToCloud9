@@ -12,6 +12,7 @@ on:
     types: [build-ac-testrealm]
 
 permissions:
+  actions: read
   contents: read
   packages: write
 
@@ -44,6 +45,9 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
+      # Exposes the short-lived GitHub Actions cache credentials to direct
+      # buildx invocations. Pinned because this step handles runtime tokens.
+      - uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -52,18 +56,46 @@ jobs:
 
       - name: Build and publish runtime
         id: runtime
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: game-server/azerothcore/Dockerfile
-          target: gameserver
-          platforms: linux/amd64
-          push: true
-          build-args: |
-            AC_REF=${{ steps.pr.outputs.sha }}
-            AC_BUILD_TYPE=Release
-          tags: ghcr.io/${{ github.repository_owner }}/tc9-ac-pr:pr-${{ steps.pr.outputs.number }}-${{ steps.pr.outputs.sha }}
-          cache-from: type=gha,scope=ac-testrealm-trusted
+        env:
+          CALLBACK_URL: ${{ secrets.TESTREALM_CATALOG_URL }}
+          CALLBACK_SECRET: ${{ secrets.TESTREALM_CATALOG_SECRET }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          AC_SHA: ${{ steps.pr.outputs.sha }}
+        run: |
+          set -o pipefail
+          last_percent=-1
+          docker buildx build . \
+            --file game-server/azerothcore/Dockerfile \
+            --target gameserver \
+            --platform linux/amd64 \
+            --push \
+            --build-arg "AC_REF=$AC_SHA" \
+            --build-arg AC_BUILD_TYPE=Release \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr:pr-${PR_NUMBER}-${AC_SHA}" \
+            --cache-from type=gha,scope=ac-testrealm-trusted \
+            --metadata-file runtime-metadata.json \
+            --progress plain 2>&1 | while IFS= read -r line; do
+              printf '%s\n' "$line"
+              if [[ "$line" =~ \[[[:space:]]*([0-9]{1,3})%\] ]]; then
+                percent="${BASH_REMATCH[1]}"
+                if (( percent != last_percent && percent >= 0 && percent <= 100 )); then
+                  last_percent="$percent"
+                  if [ -n "$CALLBACK_URL" ] && [ -n "$CALLBACK_SECRET" ]; then
+                    body="$(jq -nc --argjson run_id "$GITHUB_RUN_ID" --argjson pr "$PR_NUMBER" \
+                      --argjson progress "$percent" --arg detail "Compiling AzerothCore — ${percent}%" \
+                      '{run_id:$run_id,pr_number:$pr,progress_percent:$progress,detail:$detail}')"
+                    timestamp="$(date +%s)"
+                    signature="$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$CALLBACK_SECRET" -hex | awk '{print $2}')"
+                    curl --fail --silent --show-error --max-time 10 -X POST "$CALLBACK_URL/internal/build-progress" \
+                      -H 'Content-Type: application/json' -H "X-TC9-Timestamp: $timestamp" \
+                      -H "X-TC9-Signature: $signature" --data-binary "$body" || true
+                  fi
+                fi
+              fi
+            done
+          digest="$(jq -er '."containerimage.digest"' runtime-metadata.json)"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Build and publish database importer
         id: importer
