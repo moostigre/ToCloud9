@@ -75,6 +75,22 @@ jobs:
           echo "module_refs=$refs" >> "$GITHUB_OUTPUT"
           echo "modules_json=$modules_json" >> "$GITHUB_OUTPUT"
 
+      - name: Verify signed progress reporting
+        env:
+          CALLBACK_URL: ${{ secrets.TESTREALM_CATALOG_URL }}
+          CALLBACK_SECRET: ${{ secrets.TESTREALM_CATALOG_SECRET }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          [ "$CALLBACK_URL" = "https://test.expanded.space" ]
+          [ -n "$CALLBACK_SECRET" ]
+          body="$(jq -nc --argjson run_id "$GITHUB_RUN_ID" --argjson pr "$PR_NUMBER" \
+            '{run_id:$run_id,pr_number:$pr,progress_percent:3,detail:"Build runner connected; preparing AzerothCore compilation"}')"
+          timestamp="$(date +%s)"
+          signature="$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$CALLBACK_SECRET" -hex | awk '{print $2}')"
+          curl --fail --silent --show-error --max-time 10 -X POST "$CALLBACK_URL/internal/build-progress" \
+            -H 'Content-Type: application/json' -H "X-TC9-Timestamp: $timestamp" \
+            -H "X-TC9-Signature: $signature" --data-binary "$body"
+
       - uses: docker/setup-buildx-action@v3
       # Exposes the short-lived GitHub Actions cache credentials to direct
       # buildx invocations. Pinned because this step handles runtime tokens.
