@@ -16,6 +16,7 @@
 #include "QuestDef.h"
 #include "RBAC.h"
 #include "Realm.h"
+#include "ReputationMgr.h"
 #include "ScriptMgr.h"
 #include "SharedDefines.h"
 #include "WorldSession.h"
@@ -38,8 +39,7 @@ namespace
 constexpr uint32 MaxFixtureItems = 40;
 constexpr uint32 MaxFixtureItemCount = 200;
 constexpr uint32 MaxFixtureAttachments = 120;
-constexpr uint32 MaxActiveQuests = 25;
-constexpr uint32 MaxCompletedQuests = 100;
+constexpr uint32 MaxFixtureQuests = 25;
 
 struct FixtureItem
 {
@@ -184,6 +184,65 @@ bool ValidateFixtureItems(std::vector<FixtureItem> const& requested)
     return true;
 }
 
+bool CompleteFixtureQuest(Player* player, Quest const* quest)
+{
+    for (uint8 index = 0; index < QUEST_ITEM_OBJECTIVES_COUNT; ++index)
+    {
+        uint32 itemId = quest->RequiredItemId[index];
+        uint32 requiredCount = quest->RequiredItemCount[index];
+        uint32 currentCount = itemId ? player->GetItemCount(itemId, true) : 0;
+        if (!itemId || currentCount >= requiredCount)
+            continue;
+
+        ItemPosCountVec destinations;
+        uint32 missingCount = requiredCount - currentCount;
+        if (player->CanStoreNewItem(NULL_BAG, NULL_SLOT, destinations, itemId, missingCount) != EQUIP_ERR_OK ||
+            !player->StoreNewItem(destinations, itemId, true))
+            return false;
+    }
+
+    // Mirror AzerothCore's .quest complete command so objective counters are
+    // consistent with the completed quest-log state.
+    for (uint8 index = 0; index < QUEST_OBJECTIVES_COUNT; ++index)
+    {
+        int32 creatureOrGameObject = quest->RequiredNpcOrGo[index];
+        uint32 requiredCount = quest->RequiredNpcOrGoCount[index];
+        if (creatureOrGameObject > 0)
+        {
+            CreatureTemplate const* creature = sObjectMgr->GetCreatureTemplate(creatureOrGameObject);
+            if (!creature)
+                return false;
+            for (uint32 count = 0; count < requiredCount; ++count)
+                player->KilledMonster(creature, ObjectGuid::Empty);
+        }
+        else if (creatureOrGameObject < 0)
+            for (uint32 count = 0; count < requiredCount; ++count)
+                player->KillCreditGO(creatureOrGameObject);
+    }
+
+    if (quest->HasSpecialFlag(QUEST_SPECIAL_FLAGS_PLAYER_KILL) && quest->GetPlayersSlain())
+        player->KilledPlayerCreditForQuest(quest->GetPlayersSlain(), quest);
+
+    auto satisfyReputation = [player](uint32 faction, uint32 requiredValue)
+    {
+        if (faction && player->GetReputationMgr().GetReputation(faction) < requiredValue)
+            if (FactionEntry const* factionEntry = sFactionStore.LookupEntry(faction))
+                player->GetReputationMgr().SetReputation(factionEntry, static_cast<float>(requiredValue));
+    };
+    satisfyReputation(quest->GetRepObjectiveFaction(), quest->GetRepObjectiveValue());
+    satisfyReputation(quest->GetRepObjectiveFaction2(), quest->GetRepObjectiveValue2());
+
+    int32 rewardOrRequiredMoney = quest->GetRewOrReqMoney(player->GetLevel());
+    uint32 requiredMoney = rewardOrRequiredMoney < 0 ? static_cast<uint32>(-static_cast<int64>(rewardOrRequiredMoney)) : 0;
+    if (requiredMoney && !player->HasEnoughMoney(requiredMoney))
+        player->SetMoney(requiredMoney);
+
+    player->CompleteQuest(quest->GetQuestId());
+    return player->FindQuestSlot(quest->GetQuestId()) < MAX_QUEST_LOG_SIZE &&
+        player->GetQuestStatus(quest->GetQuestId()) == QUEST_STATUS_COMPLETE &&
+        !player->IsQuestRewarded(quest->GetQuestId()) && player->CanRewardQuest(quest, false);
+}
+
 class testrealm_fixture_commandscript : public CommandScript
 {
 public:
@@ -233,15 +292,21 @@ public:
         std::vector<uint32> activeQuests;
         std::vector<uint32> completedQuests;
         std::unordered_set<uint32> seenQuests;
-        if (!ParseItems(itemToken, items) || !ParseQuests(activeToken, activeQuests, MaxActiveQuests, seenQuests) ||
-            !ParseQuests(completedToken, completedQuests, MaxCompletedQuests, seenQuests))
+        if (!ParseItems(itemToken, items) || !ParseQuests(activeToken, activeQuests, MaxFixtureQuests, seenQuests) ||
+            !ParseQuests(completedToken, completedQuests, MaxFixtureQuests, seenQuests) ||
+            activeQuests.size() + completedQuests.size() > MaxFixtureQuests)
             return Fail(handler, "invalid item or quest list");
 
         if (!ValidateFixtureItems(items))
             return Fail(handler, "unknown item ID or excessive generated stacks");
         for (uint32 quest : seenQuests)
-            if (!sObjectMgr->GetQuestTemplate(quest))
+        {
+            Quest const* questTemplate = sObjectMgr->GetQuestTemplate(quest);
+            if (!questTemplate)
                 return Fail(handler, "unknown quest ID");
+            if (questTemplate->HasFlag(QUEST_FLAGS_TRACKING))
+                return Fail(handler, "tracking quests cannot remain in the quest log");
+        }
 
         WorldSession fixtureSession(accountId, std::move(accountName), 0, nullptr, SEC_ADMINISTRATOR,
             EXPANSION_WRATH_OF_THE_LICH_KING, 0, LOCALE_enUS, 0, false, true, 0);
@@ -263,21 +328,22 @@ public:
             player->InitTalentForLevel();
             player->SetUInt32Value(PLAYER_XP, 0);
         }
-        for (uint32 quest : activeQuests)
-            player->AddQuest(sObjectMgr->GetQuestTemplate(quest), nullptr);
+        player->SetMoney(money);
         for (uint32 quest : completedQuests)
         {
             Quest const* questTemplate = sObjectMgr->GetQuestTemplate(quest);
             player->AddQuest(questTemplate, nullptr);
-            player->CompleteQuest(quest);
-            // CompleteQuest only makes the quest ready to turn in. A fixture
-            // marked completed must appear in the rewarded history as if the
-            // administrator had used AzerothCore's .quest reward command.
-            player->RewardQuest(questTemplate, 0, player.get(), false);
+            if (!CompleteFixtureQuest(player.get(), questTemplate))
+                return Fail(handler, "quest could not be prepared for turn-in");
         }
-        // Keep the explicitly requested amount deterministic even when a
-        // completed quest normally grants or consumes money.
-        player->SetMoney(money);
+        // Add incomplete quests last so completing another requested quest
+        // cannot accidentally advance an overlapping active objective.
+        for (uint32 quest : activeQuests)
+        {
+            player->AddQuest(sObjectMgr->GetQuestTemplate(quest), nullptr);
+            if (player->FindQuestSlot(quest) >= MAX_QUEST_LOG_SIZE || player->GetQuestStatus(quest) != QUEST_STATUS_INCOMPLETE)
+                return Fail(handler, "quest could not be added to the quest log");
+        }
 
         CharacterDatabaseTransaction characterTransaction = CharacterDatabase.BeginTransaction();
         player->SaveToDB(characterTransaction, true, false);
