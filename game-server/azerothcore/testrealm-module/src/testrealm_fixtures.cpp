@@ -263,14 +263,21 @@ public:
             player->InitTalentForLevel();
             player->SetUInt32Value(PLAYER_XP, 0);
         }
-        player->SetMoney(money);
         for (uint32 quest : activeQuests)
             player->AddQuest(sObjectMgr->GetQuestTemplate(quest), nullptr);
         for (uint32 quest : completedQuests)
         {
-            player->AddQuest(sObjectMgr->GetQuestTemplate(quest), nullptr);
+            Quest const* questTemplate = sObjectMgr->GetQuestTemplate(quest);
+            player->AddQuest(questTemplate, nullptr);
             player->CompleteQuest(quest);
+            // CompleteQuest only makes the quest ready to turn in. A fixture
+            // marked completed must appear in the rewarded history as if the
+            // administrator had used AzerothCore's .quest reward command.
+            player->RewardQuest(questTemplate, 0, player.get(), false);
         }
+        // Keep the explicitly requested amount deterministic even when a
+        // completed quest normally grants or consumes money.
+        player->SetMoney(money);
 
         CharacterDatabaseTransaction characterTransaction = CharacterDatabase.BeginTransaction();
         player->SaveToDB(characterTransaction, true, false);

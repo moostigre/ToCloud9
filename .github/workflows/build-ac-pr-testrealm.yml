@@ -170,7 +170,7 @@ jobs:
           RUNTIME_DIGEST: ${{ steps.runtime.outputs.digest }}
           IMPORTER_DIGEST: ${{ steps.importer.outputs.digest }}
           MODULES_JSON: ${{ steps.pr.outputs.modules_json }}
-          BUILD_PROFILE: fixtures-v1
+          BUILD_PROFILE: fixtures-v2
         run: |
           if [ -z "$URL" ] || [ -z "$SECRET" ]; then
             echo "Catalogue callback is not configured; skipping."

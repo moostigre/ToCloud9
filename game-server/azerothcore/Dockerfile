@@ -81,6 +81,13 @@ RUN if [ -n "$AC_MODULES" ]; then \
 # characters through AzerothCore's own Player, quest, item and GUID APIs.
 COPY game-server/azerothcore/testrealm-module /repo/modules/mod-testrealm-fixtures
 
+# dbimport only carries /repo/data into its runtime image. Flatten the SQL from
+# each exact, trusted module revision into the matching custom database tree so
+# every ephemeral realm receives the module schema and strings it was compiled
+# against. The collector ignores symlinks and caps the copied SQL volume.
+COPY game-server/azerothcore/collect-module-sql.sh /usr/local/bin/collect-module-sql
+RUN chmod 0555 /usr/local/bin/collect-module-sql && /usr/local/bin/collect-module-sql
+
 COPY game-server/azerothcore/patches /tmp/azerothcore-patches
 RUN cd /repo && \
     for patch in /tmp/azerothcore-patches/*.patch; do \
