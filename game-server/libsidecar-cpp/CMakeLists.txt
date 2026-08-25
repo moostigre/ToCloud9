@@ -19,12 +19,20 @@ if(DEFINED VCPKG_TARGET_TRIPLET)
     endif()
 endif()
 
-project(libsidecar VERSION 0.0.1 LANGUAGES C CXX)
+project(libsidecar VERSION 1.0.0 LANGUAGES C CXX)
 
 # C++ Standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Generate the public ABI version header from the project version.
+set(TC9_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tc9_version.h.in"
+    "${TC9_GENERATED_INCLUDE_DIR}/tc9_version.h"
+    @ONLY
+)
 
 # Enable Position Independent Code for all targets (required for shared library)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -105,7 +113,8 @@ if(USE_SYSTEM_GRPC)
     # Try both gRPC (newer) and grpc (vcpkg uses lowercase)
     find_package(gRPC CONFIG QUIET)
     if(NOT gRPC_FOUND)
-        find_package(grpc CONFIG REQUIRED)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(GRPCPP REQUIRED IMPORTED_TARGET grpc++)
     endif()
     find_package(Protobuf REQUIRED)
 
@@ -113,6 +122,8 @@ if(USE_SYSTEM_GRPC)
     if(NOT TARGET gRPC::grpc++)
         if(TARGET grpc++)
             add_library(gRPC::grpc++ ALIAS grpc++)
+        elseif(TARGET PkgConfig::GRPCPP)
+            add_library(gRPC::grpc++ ALIAS PkgConfig::GRPCPP)
         endif()
     endif()
 
@@ -311,6 +322,7 @@ foreach(PROTO_FILE ${PROTO_FILES})
         COMMAND ${_PROTOBUF_PROTOC}
         ARGS --grpc_out=${PROTO_GENERATED_DIR}
              --cpp_out=${PROTO_GENERATED_DIR}
+             --experimental_allow_proto3_optional
              -I${PROTO_PATH}
              --plugin=protoc-gen-grpc=${_GRPC_CPP_PLUGIN_EXECUTABLE}
              ${PROTO_PATH}/${PROTO_FILE}
@@ -366,6 +378,7 @@ add_library(libsidecar_objs OBJECT ${LIBSIDECAR_SOURCES})
 target_include_directories(libsidecar_objs
     PUBLIC
         ${CMAKE_SOURCE_DIR}/include
+        ${TC9_GENERATED_INCLUDE_DIR}
         ${CMAKE_SOURCE_DIR}/src
         ${PROTO_GENERATED_DIR}
 )
@@ -392,17 +405,17 @@ target_link_libraries(libsidecar_objs
 # Main library target (DLL/shared library)
 add_library(libsidecar SHARED $<TARGET_OBJECTS:libsidecar_objs>)
 
-# Library naming to match Go artifacts (libsidecar.so on all platforms)
+# Keep the library filename unversioned. ABI compatibility is exposed through
+# tc9_version.h and TC9GetVersion rather than a versioned SONAME.
 set_target_properties(libsidecar PROPERTIES
     PREFIX ""
     OUTPUT_NAME "libsidecar"
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
 target_include_directories(libsidecar
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${TC9_GENERATED_INCLUDE_DIR}>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -474,6 +487,7 @@ if(BUILD_TESTS)
 
     target_include_directories(c_api_compatibility_test PRIVATE
         ${CMAKE_SOURCE_DIR}/include
+        ${TC9_GENERATED_INCLUDE_DIR}
     )
 
     target_link_libraries(c_api_compatibility_test
@@ -504,6 +518,7 @@ install(FILES
     include/player-interactions-api.h
     include/battleground-api.h
     include/monitoring.h
+    "${TC9_GENERATED_INCLUDE_DIR}/tc9_version.h"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
