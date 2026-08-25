@@ -19,6 +19,9 @@
     #endif
 #endif
 
+/* Compile-time ABI version generated from the CMake project version. */
+#include "tc9_version.h"
+
 /* Include all API headers */
 #include "battleground-api.h"
 #include "events-group.h"
@@ -32,6 +35,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Version of the linked library. */
+TC9_API void TC9GetVersion(int* major, int* minor, int* patch);
+TC9_API const char* TC9GetVersionString(void);
+TC9_API int TC9CheckAbiCompatible(int required_major, int required_minor);
 
 /* Main library functions */
 TC9_API void TC9InitLib(uint16_t port, uint32_t realmID, uint8_t isCrossRealm, char* availableMaps, uint32_t** assignedMaps, int* assignedMapsSize);
