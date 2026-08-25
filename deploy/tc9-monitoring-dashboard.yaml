@@ -135,8 +135,8 @@ data:
           "gridPos": {"h": 5, "w": 12, "x": 0, "y": 23},
           "id": 12,
           "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
-          "targets": [{"expr": "100 * (1 - node_filesystem_avail_bytes{instance=~\"$node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{instance=~\"$node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})", "instant": false, "legendFormat": "Root filesystem", "refId": "A"}],
-          "title": "Server disk usage (/)",
+          "targets": [{"expr": "100 * (1 - node_filesystem_avail_bytes{instance=~\"$node\",mountpoint=~\"/|/data\",fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{instance=~\"$node\",mountpoint=~\"/|/data\",fstype!~\"tmpfs|overlay|squashfs\"})", "instant": false, "legendFormat": "{{mountpoint}}", "refId": "A"}],
+          "title": "Server disk usage",
           "type": "stat"
         }
       ],
@@ -154,5 +154,5 @@ data:
       "timezone": "browser",
       "title": "TC9 Server & Instance Overview",
       "uid": "tc9-server-instances",
-      "version": 2
+      "version": 3
     }
