@@ -77,6 +77,10 @@ RUN if [ -n "$AC_MODULES" ]; then \
       IFS="$old_ifs"; \
     fi
 
+# Infrastructure-only command module used to create deterministic test
+# characters through AzerothCore's own Player, quest, item and GUID APIs.
+COPY game-server/azerothcore/testrealm-module /repo/modules/mod-testrealm-fixtures
+
 COPY game-server/azerothcore/patches /tmp/azerothcore-patches
 RUN cd /repo && \
     for patch in /tmp/azerothcore-patches/*.patch; do \

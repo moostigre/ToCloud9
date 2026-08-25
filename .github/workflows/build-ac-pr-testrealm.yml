@@ -170,6 +170,7 @@ jobs:
           RUNTIME_DIGEST: ${{ steps.runtime.outputs.digest }}
           IMPORTER_DIGEST: ${{ steps.importer.outputs.digest }}
           MODULES_JSON: ${{ steps.pr.outputs.modules_json }}
+          BUILD_PROFILE: fixtures-v1
         run: |
           if [ -z "$URL" ] || [ -z "$SECRET" ]; then
             echo "Catalogue callback is not configured; skipping."
@@ -179,7 +180,8 @@ jobs:
             --arg image "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr@${RUNTIME_DIGEST}" \
             --arg importer "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr-dbimport@${IMPORTER_DIGEST}" \
             --argjson modules "$MODULES_JSON" \
-            '{pr_number:$pr,sha:$sha,image:$image,importer_image:$importer,modules:$modules}')"
+            --arg build_profile "$BUILD_PROFILE" \
+            '{pr_number:$pr,sha:$sha,image:$image,importer_image:$importer,modules:$modules,build_profile:$build_profile}')"
           timestamp="$(date +%s)"
           signature="$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$SECRET" -hex | awk '{print $2}')"
           curl --fail --silent --show-error -X POST "$URL/internal/catalogue" \
