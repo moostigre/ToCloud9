@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tc9-server-instance-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  tc9-server-instance-overview.json: |-
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 1,
+      "links": [],
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}, "unit": "percent"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+          "id": 1,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "100 * (1 - avg(rate(node_cpu_seconds_total{instance=~\"$node\",mode=\"idle\"}[$__rate_interval])))", "instant": false, "legendFormat": "CPU", "refId": "A"}],
+          "title": "Server CPU usage",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 75}, {"color": "red", "value": 90}]}, "unit": "percent"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+          "id": 2,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "100 * (1 - node_memory_MemAvailable_bytes{instance=~\"$node\"} / node_memory_MemTotal_bytes{instance=~\"$node\"})", "instant": false, "legendFormat": "RAM", "refId": "A"}],
+          "title": "Server RAM usage",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "unit": "bps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 3,
+          "options": {"legend": {"calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+          "targets": [
+            {"expr": "sum(rate(node_network_receive_bytes_total{instance=~\"$node\",device=~\"enp.*|eth.*|eno.*|ens.*|bond.*\"}[$__rate_interval])) * 8", "legendFormat": "Inbound", "refId": "A"},
+            {"expr": "sum(rate(node_network_transmit_bytes_total{instance=~\"$node\",device=~\"enp.*|eth.*|eno.*|ens.*|bond.*\"}[$__rate_interval])) * 8", "legendFormat": "Outbound", "refId": "B"}
+          ],
+          "title": "Server bandwidth",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "decimals": 2, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 4}, {"color": "red", "value": 7}]}, "unit": "cores"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 5},
+          "id": 4,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",container!=\"\",image!=\"\"}[$__rate_interval]))", "legendFormat": "TC9 CPU", "refId": "A"}],
+          "title": "TC9 CPU usage",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 8589934592}, {"color": "red", "value": 12884901888}]}, "unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 5},
+          "id": 5,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "sum(container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\",image!=\"\"})", "legendFormat": "TC9 RAM", "refId": "A"}],
+          "title": "TC9 RAM usage",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 12, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "unit": "bps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 6,
+          "options": {"legend": {"calcs": ["lastNotNull", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+          "targets": [
+            {"expr": "sum(rate(container_network_receive_bytes_total{namespace=~\"$namespace\"}[$__rate_interval])) * 8", "legendFormat": "Inbound", "refId": "A"},
+            {"expr": "sum(rate(container_network_transmit_bytes_total{namespace=~\"$namespace\"}[$__rate_interval])) * 8", "legendFormat": "Outbound", "refId": "B"}
+          ],
+          "title": "TC9 bandwidth",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "unit": "cores"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 10},
+          "id": 7,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+          "targets": [{"expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",container!=\"\",image!=\"\"}[$__rate_interval]))", "legendFormat": "{{namespace}}", "refId": "A"}],
+          "title": "TC9 CPU by namespace",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": {"legend": false, "tooltip": false, "viz": false}, "lineInterpolation": "linear", "lineWidth": 2, "pointSize": 5, "scaleDistribution": {"type": "linear"}, "showPoints": "never", "spanNulls": false, "stacking": {"group": "A", "mode": "none"}, "thresholdsStyle": {"mode": "off"}}, "unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 8,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"hideZeros": false, "mode": "multi", "sort": "desc"}},
+          "targets": [{"expr": "sum by (namespace) (container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\",image!=\"\"})", "legendFormat": "{{namespace}}", "refId": "A"}],
+          "title": "TC9 RAM by namespace",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 4, "x": 0, "y": 18},
+          "id": 9,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "sum(kube_pod_status_phase{namespace=~\"$namespace\",phase=\"Running\"})", "instant": true, "legendFormat": "Running", "refId": "A"}],
+          "title": "Running TC9 pods",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 4, "x": 4, "y": 18},
+          "id": 10,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "sum(kube_pod_status_phase{namespace=~\"$namespace\",phase!=\"Running\"} == 1)", "instant": true, "legendFormat": "Not running", "refId": "A"}],
+          "title": "Non-running TC9 pods",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 4, "x": 8, "y": 18},
+          "id": 11,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h]))", "instant": true, "legendFormat": "Restarts", "refId": "A"}],
+          "title": "TC9 restarts (1 hour)",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"decimals": 1, "max": 100, "min": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 75}, {"color": "red", "value": 90}]}, "unit": "percent"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 12, "x": 0, "y": 23},
+          "id": 12,
+          "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto", "wideLayout": true},
+          "targets": [{"expr": "100 * (1 - node_filesystem_avail_bytes{instance=~\"$node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{instance=~\"$node\",mountpoint=\"/\",fstype!~\"tmpfs|overlay|squashfs\"})", "instant": false, "legendFormat": "Root filesystem", "refId": "A"}],
+          "title": "Server disk usage (/)",
+          "type": "stat"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 41,
+      "tags": ["TC9", "server", "instances"],
+      "templating": {
+        "list": [
+          {"current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "definition": "label_values(kube_pod_info{namespace=~\"tc9-.*\"}, namespace)", "includeAll": true, "allValue": "tc9-.*", "label": "TC9 namespace", "multi": true, "name": "namespace", "options": [], "query": {"query": "label_values(kube_pod_info{namespace=~\"tc9-.*\"}, namespace)", "refId": "PrometheusVariableQueryEditor-VariableQuery"}, "refresh": 1, "sort": 1, "type": "query"},
+          {"current": {"selected": false, "text": "163.172.51.144:9100", "value": "163.172.51.144:9100"}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "definition": "label_values(node_uname_info, instance)", "hide": 2, "includeAll": false, "label": "Server", "multi": false, "name": "node", "options": [], "query": {"query": "label_values(node_uname_info, instance)", "refId": "PrometheusVariableQueryEditor-VariableQuery"}, "refresh": 1, "sort": 1, "type": "query"}
+        ]
+      },
+      "time": {"from": "now-6h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "TC9 Server & Instance Overview",
+      "uid": "tc9-server-instances",
+      "version": 2
+    }
