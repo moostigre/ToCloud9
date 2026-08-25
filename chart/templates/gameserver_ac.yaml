@@ -144,7 +144,7 @@ metadata:
 spec:
   storageClassName: {{ .Values.gameserver_ac.storageClass }}
   accessModes:
-    - ReadWriteMany
+    - {{ .Values.gameserver_ac.accessMode | default "ReadWriteMany" }}
   resources:
     requests:
       # storage: 15Gi
