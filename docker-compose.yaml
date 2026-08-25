@@ -2,7 +2,8 @@ services:
   database-ac:
     image: mysql:8.4
     ports:
-      - "3306:3306"
+      # Keep local development MySQL off public interfaces.
+      - "127.0.0.1:3306:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=password # Inits default password for the root user
     volumes:

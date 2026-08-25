@@ -16,6 +16,9 @@ mysql:
     storageClass: standard
   initdbScriptsConfigMap: mysql-init-scripts
   primary:
+    service:
+      # Databases must remain private to the Kubernetes cluster.
+      type: ClusterIP
     # Had some issues with restarts, so disabled these for now.
     livenessProbe:
       enabled: false
