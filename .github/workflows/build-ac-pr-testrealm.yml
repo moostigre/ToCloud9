@@ -8,6 +8,11 @@ on:
         description: Open AzerothCore PR number
         required: true
         type: number
+      modules:
+        description: Comma-separated trusted AzerothCore module names
+        required: false
+        default: ""
+        type: string
   repository_dispatch:
     types: [build-ac-testrealm]
 
@@ -30,6 +35,8 @@ jobs:
         id: pr
         env:
           PR_NUMBER: ${{ inputs.pr_number || github.event.client_payload.pr_number }}
+          MODULES: ${{ inputs.modules || github.event.client_payload.modules }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           case "$PR_NUMBER" in (*[!0-9]*|'') exit 1;; esac
           response="$(curl --fail --silent --show-error \
@@ -43,6 +50,30 @@ jobs:
           test "$(git ls-remote https://github.com/azerothcore/azerothcore-wotlk.git "refs/pull/$PR_NUMBER/head" | cut -f1)" = "$sha"
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          module_refs=()
+          module_names=()
+          if [ -n "$MODULES" ]; then
+            IFS=',' read -ra requested <<< "$MODULES"
+            (( ${#requested[@]} <= 5 ))
+            declare -A seen=()
+            for module in "${requested[@]}"; do
+              [[ "$module" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]]
+              [ -z "${seen[$module]:-}" ]
+              seen[$module]=1
+              metadata="$(gh api "repos/azerothcore/$module")"
+              [ "$(jq -r .owner.login <<<"$metadata")" = azerothcore ]
+              jq -e '.topics | index("azerothcore-module") != null' <<<"$metadata" >/dev/null
+              branch="$(jq -r .default_branch <<<"$metadata")"
+              module_sha="$(gh api "repos/azerothcore/$module/commits/$branch" --jq .sha)"
+              [[ "$module_sha" =~ ^[a-f0-9]{40}$ ]]
+              module_refs+=("$module@$module_sha")
+              module_names+=("$module")
+            done
+          fi
+          refs="$(IFS=,; echo "${module_refs[*]}")"
+          modules_json="$(printf '%s\n' "${module_names[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')"
+          echo "module_refs=$refs" >> "$GITHUB_OUTPUT"
+          echo "modules_json=$modules_json" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
       # Exposes the short-lived GitHub Actions cache credentials to direct
@@ -71,6 +102,7 @@ jobs:
             --push \
             --build-arg "AC_REF=$AC_SHA" \
             --build-arg AC_BUILD_TYPE=Release \
+            --build-arg 'AC_MODULES=${{ steps.pr.outputs.module_refs }}' \
             --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr:pr-${PR_NUMBER}-${AC_SHA}" \
             --cache-from type=gha,scope=ac-testrealm-trusted \
             --metadata-file runtime-metadata.json \
@@ -109,6 +141,7 @@ jobs:
           build-args: |
             AC_REF=${{ steps.pr.outputs.sha }}
             AC_BUILD_TYPE=Release
+            AC_MODULES=${{ steps.pr.outputs.module_refs }}
           tags: ghcr.io/${{ github.repository_owner }}/tc9-ac-pr-dbimport:pr-${{ steps.pr.outputs.number }}-${{ steps.pr.outputs.sha }}
           cache-from: type=gha,scope=ac-testrealm-trusted
 
@@ -120,6 +153,7 @@ jobs:
           SHA: ${{ steps.pr.outputs.sha }}
           RUNTIME_DIGEST: ${{ steps.runtime.outputs.digest }}
           IMPORTER_DIGEST: ${{ steps.importer.outputs.digest }}
+          MODULES_JSON: ${{ steps.pr.outputs.modules_json }}
         run: |
           if [ -z "$URL" ] || [ -z "$SECRET" ]; then
             echo "Catalogue callback is not configured; skipping."
@@ -128,7 +162,8 @@ jobs:
           body="$(jq -nc --argjson pr "$PR_NUMBER" --arg sha "$SHA" \
             --arg image "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr@${RUNTIME_DIGEST}" \
             --arg importer "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr-dbimport@${IMPORTER_DIGEST}" \
-            '{pr_number:$pr,sha:$sha,image:$image,importer_image:$importer}')"
+            --argjson modules "$MODULES_JSON" \
+            '{pr_number:$pr,sha:$sha,image:$image,importer_image:$importer,modules:$modules}')"
           timestamp="$(date +%s)"
           signature="$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$SECRET" -hex | awk '{print $2}')"
           curl --fail --silent --show-error -X POST "$URL/internal/catalogue" \

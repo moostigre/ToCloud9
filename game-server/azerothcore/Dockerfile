@@ -51,6 +51,7 @@ RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
 ARG AC_REPOSITORY=https://github.com/azerothcore/azerothcore-wotlk.git
 ARG AC_REF=ca8e6d78dee182fbe4c840dbc24a577c25844593
 ARG AC_BUILD_TYPE=RelWithDebInfo
+ARG AC_MODULES=
 
 RUN mkdir repo
 RUN cd repo && git init && \
@@ -58,6 +59,23 @@ RUN cd repo && git init && \
     git remote add origin "$AC_REPOSITORY" && \
     git fetch --depth 1 origin "$AC_REF" && \
     git checkout FETCH_HEAD
+
+# Only repositories owned by the trusted AzerothCore organization are
+# accepted, and every module is pinned to an exact commit resolved by CI.
+RUN if [ -n "$AC_MODULES" ]; then \
+      old_ifs="$IFS"; IFS=','; \
+      for entry in $AC_MODULES; do \
+        module="${entry%@*}"; module_ref="${entry#*@}"; \
+        printf '%s' "$module" | grep -Eq '^[a-z0-9][a-z0-9-]{1,62}$'; \
+        printf '%s' "$module_ref" | grep -Eq '^[a-f0-9]{40}$'; \
+        mkdir -p "/repo/modules/$module"; \
+        git -C "/repo/modules/$module" init; \
+        git -C "/repo/modules/$module" remote add origin "https://github.com/azerothcore/$module.git"; \
+        git -C "/repo/modules/$module" fetch --depth 1 origin "$module_ref"; \
+        git -C "/repo/modules/$module" checkout --detach FETCH_HEAD; \
+      done; \
+      IFS="$old_ifs"; \
+    fi
 
 COPY game-server/azerothcore/patches /tmp/azerothcore-patches
 RUN cd /repo && \
