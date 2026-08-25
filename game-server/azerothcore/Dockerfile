@@ -61,8 +61,10 @@ RUN cd repo && git init && \
 
 COPY game-server/azerothcore/patches /tmp/azerothcore-patches
 RUN cd /repo && \
-    git apply --check --unidiff-zero /tmp/azerothcore-patches/*.patch && \
-    git apply --unidiff-zero /tmp/azerothcore-patches/*.patch
+    for patch in /tmp/azerothcore-patches/*.patch; do \
+        [ -e "$patch" ] || continue; \
+        git apply --check "$patch" && git apply "$patch"; \
+    done
 
 COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
 COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
