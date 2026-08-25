@@ -97,8 +97,6 @@ RUN cd /repo && \
 
 COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
 COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
-# Old PR heads predate this generated ABI header, so never inherit it from AC.
-COPY --from=build-sidecar /build/libsidecar-cpp/build/generated/include/tc9_version.h ./repo/deps/libsidecar/include/tc9_version.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-guild.h ./repo/deps/libsidecar/include/events-guild.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-group.h ./repo/deps/libsidecar/include/events-group.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-servers-registry.h ./repo/deps/libsidecar/include/events-servers-registry.h
