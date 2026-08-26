@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testrealm-activity-reconciler
+  namespace: tc9-testrealm-system
+data:
+  reconcile.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    mysql_exec() {
+      MYSQL_PWD="$TC9_DB_PASSWORD" mysql --protocol=TCP \
+        -h ptr-mysql.tc9-ptr.svc.cluster.local -u "$TC9_DB_USER" "$@"
+    }
+
+    for slot in 1 2 3 4 5; do
+      namespace="tc9-testrealm-slot-${slot}"
+      deployment="$(kubectl -n "$namespace" get deployment/testrealm-gateway -o json 2>/dev/null || true)"
+      [[ -n "$deployment" ]] || continue
+
+      realm_key="$(jq -r '.metadata.annotations["tc9.realm-id"] // empty' <<<"$deployment")"
+      realm_id="$(jq -r '.metadata.labels["tc9.realm-slot"] // .spec.template.metadata.labels["tc9.realm-slot"] // empty' <<<"$deployment")"
+      desired="$(jq -r '.spec.replicas // 0' <<<"$deployment")"
+      ready="$(jq -r '.status.availableReplicas // 0' <<<"$deployment")"
+      [[ "$realm_key" =~ ^[a-f0-9]{24}$ && "$realm_id" =~ ^[0-9]+$ ]] || continue
+
+      if [[ "$desired" == 0 ]]; then
+        mysql_exec -e "UPDATE acore_auth.realmlist SET flag=(flag | 2) WHERE id=${realm_id}"
+        continue
+      fi
+
+      # A starting or unhealthy gateway stays offline. Failed observations do
+      # not refresh activity and therefore cannot manufacture player presence.
+      [[ "$ready" == "$desired" ]] || continue
+      pod_ip="$(kubectl -n "$namespace" get pods -l app=testrealm-gateway \
+        --field-selector=status.phase=Running -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || true)"
+      [[ -n "$pod_ip" ]] || continue
+      metrics="$(curl --fail --silent --show-error --max-time 5 "http://${pod_ip}:8900/metrics")" || continue
+      active="$(awk '$1 == "active_connections" { print $2; found=1; exit } END { if (!found) exit 1 }' <<<"$metrics")" || continue
+      [[ "$active" =~ ^[0-9]+([.][0-9]+)?$ ]] || continue
+
+      mysql_exec -e "UPDATE acore_auth.realmlist SET flag=(flag & 253) WHERE id=${realm_id}"
+      if awk -v value="$active" 'BEGIN { exit !(value > 0) }'; then
+        timestamp="$(date +%s)"
+        signature="$(printf '%s' "${timestamp}.${realm_key}" | openssl dgst -sha256 -hmac "$ACTIVITY_HMAC_SECRET" -hex | awk '{print $NF}')"
+        curl --fail --silent --show-error --max-time 5 -X POST \
+          -H "X-TC9-Timestamp: ${timestamp}" \
+          -H "X-TC9-Signature: ${signature}" \
+          "http://testrealm-provisioner.tc9-testrealm-system.svc.cluster.local/internal/realms/${realm_key}/activity" \
+          >/dev/null
+      fi
+    done
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: testrealm-activity-reconciler
+  namespace: tc9-testrealm-system
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 50
+      template:
+        metadata:
+          labels: {app: testrealm-activity-reconciler}
+        spec:
+          serviceAccountName: testrealm-operator
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: reconciler
+              image: tc9/testrealm-operator:poc-20260825-15
+              command: [bash, /opt/reconciler/reconcile.sh]
+              env:
+                - name: ACTIVITY_HMAC_SECRET
+                  valueFrom: {secretKeyRef: {name: testrealm-secrets, key: activity-hmac-secret}}
+                - name: TC9_DB_USER
+                  valueFrom: {secretKeyRef: {name: testrealm-secrets, key: database-user}}
+                - name: TC9_DB_PASSWORD
+                  valueFrom: {secretKeyRef: {name: testrealm-secrets, key: database-password}}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: {drop: [ALL]}
+                readOnlyRootFilesystem: true
+              resources:
+                requests: {cpu: 10m, memory: 24Mi}
+                limits: {cpu: 100m, memory: 64Mi}
+              volumeMounts:
+                - {name: script, mountPath: /opt/reconciler, readOnly: true}
+          volumes:
+            - name: script
+              configMap:
+                name: testrealm-activity-reconciler
+                defaultMode: 0555

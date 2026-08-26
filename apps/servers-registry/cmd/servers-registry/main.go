@@ -94,7 +94,6 @@ func main() {
 		healthChecker,
 		metricsConsumer,
 		events.NewServerRegistryProducerNatsJSON(nc, "0.0.1"),
-		[]uint32{1},
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create gateway service")

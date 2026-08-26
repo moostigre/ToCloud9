@@ -23,4 +23,5 @@ type GatewayRepo interface {
 	Update(ctx context.Context, id string, f func(GatewayServer) GatewayServer) error
 	Remove(ctx context.Context, healthCheckAddress string) error
 	ListByRealm(ctx context.Context, realmID uint32) ([]GatewayServer, error)
+	ListAll(ctx context.Context) ([]GatewayServer, error)
 }

@@ -65,3 +65,13 @@ func (g *gatewayInMemRepo) ListByRealm(ctx context.Context, realmID uint32) ([]G
 	}
 	return result, nil
 }
+
+func (g *gatewayInMemRepo) ListAll(context.Context) ([]GatewayServer, error) {
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
+	result := make([]GatewayServer, 0, len(g.storage))
+	for _, server := range g.storage {
+		result = append(result, *server)
+	}
+	return result, nil
+}

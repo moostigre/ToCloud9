@@ -27,7 +27,6 @@ type gatewayImpl struct {
 func NewGateway(
 	ctx context.Context, r repo.GatewayRepo, checker healthandmetrics.HealthChecker,
 	metrics healthandmetrics.MetricsConsumer, eProducer events.ServerRegistryProducer,
-	supportedRealmIDs []uint32,
 ) (Gateway, error) {
 	service := &gatewayImpl{
 		r:         r,
@@ -47,22 +46,16 @@ func NewGateway(
 		}
 	})
 
-	for _, id := range supportedRealmIDs {
-		servers, err := r.ListByRealm(ctx, id)
-		if err != nil {
+	servers, err := r.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range servers {
+		if err = checker.AddHealthCheckObject(&servers[i]); err != nil {
 			return nil, err
 		}
-
-		for i := range servers {
-			err = checker.AddHealthCheckObject(&servers[i])
-			if err != nil {
-				return nil, err
-			}
-
-			err = metrics.AddMetricsObservable(&servers[i])
-			if err != nil {
-				return nil, err
-			}
+		if err = metrics.AddMetricsObservable(&servers[i]); err != nil {
+			return nil, err
 		}
 	}
 

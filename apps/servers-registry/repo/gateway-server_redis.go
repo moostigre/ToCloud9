@@ -125,6 +125,37 @@ func (g *gatewayRedisRepo) ListByRealm(ctx context.Context, realmID uint32) ([]G
 	return result, nil
 }
 
+func (g *gatewayRedisRepo) ListAll(ctx context.Context) ([]GatewayServer, error) {
+	keys := make([]string, 0)
+	iter := g.rdb.Scan(ctx, 0, "gw:*", 100).Iterator()
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+	}
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+	if len(keys) == 0 {
+		return []GatewayServer{}, nil
+	}
+	values, err := g.rdb.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]GatewayServer, 0, len(values))
+	for i, value := range values {
+		if value == nil {
+			log.Warn().Str("key", keys[i]).Msg("fetched nil gateway")
+			continue
+		}
+		server := GatewayServer{}
+		if err := json.Unmarshal([]byte(value.(string)), &server); err != nil {
+			return nil, err
+		}
+		result = append(result, server)
+	}
+	return result, nil
+}
+
 func (g *gatewayRedisRepo) realmIndexKey(realmID uint32) string {
 	return fmt.Sprintf("realm:%d:gws", realmID)
 }

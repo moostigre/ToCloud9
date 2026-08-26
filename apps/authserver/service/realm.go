@@ -82,8 +82,6 @@ func (r *realmServiceImpl) RealmListForAccount(ctx context.Context, account *rep
 		address, found := gatewaysAddressesMap[realm.ID]
 		if !found {
 			realm.Flag |= RealmFlagOffline
-		} else {
-			realm.Flag &^= RealmFlagOffline
 		}
 
 		result = append(result, RealmListItem{
