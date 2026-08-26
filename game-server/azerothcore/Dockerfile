@@ -55,13 +55,17 @@ ARG AC_MODULES=
 
 RUN mkdir repo
 RUN cd repo && git init && \
-    test "$AC_REPOSITORY" = "https://github.com/azerothcore/azerothcore-wotlk.git" && \
+    case "$AC_REPOSITORY" in \
+      https://github.com/azerothcore/azerothcore-wotlk.git|https://github.com/moostigre/azerothcore-wotlk.git) ;; \
+      *) exit 1 ;; \
+    esac && \
     git remote add origin "$AC_REPOSITORY" && \
     git fetch --depth 1 origin "$AC_REF" && \
     git checkout FETCH_HEAD
 
-# Only repositories owned by the trusted AzerothCore organization are
-# accepted, and every module is pinned to an exact commit resolved by CI.
+# Core repositories are explicitly allowlisted above. Every optional module is
+# still restricted to the trusted AzerothCore organization and pinned to an
+# exact commit resolved by CI.
 RUN if [ -n "$AC_MODULES" ]; then \
       old_ifs="$IFS"; IFS=','; \
       for entry in $AC_MODULES; do \

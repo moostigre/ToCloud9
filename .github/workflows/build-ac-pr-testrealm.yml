@@ -1,9 +1,17 @@
 name: Build AzerothCore PR test realm
-run-name: "Build PR #${{ inputs.pr_number || github.event.client_payload.pr_number }}"
+run-name: "Build ${{ inputs.source_repository || github.event.client_payload.source_repository || 'azerothcore/azerothcore-wotlk' }} PR #${{ inputs.pr_number || github.event.client_payload.pr_number }}"
 
 on:
   workflow_dispatch:
     inputs:
+      source_repository:
+        description: Allowlisted AzerothCore source repository
+        required: true
+        default: azerothcore/azerothcore-wotlk
+        type: choice
+        options:
+          - azerothcore/azerothcore-wotlk
+          - moostigre/azerothcore-wotlk
       pr_number:
         description: Open AzerothCore PR number
         required: true
@@ -22,7 +30,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: ac-testrealm-${{ inputs.pr_number || github.event.client_payload.pr_number }}
+  group: ac-testrealm-${{ inputs.source_repository || github.event.client_payload.source_repository || 'azerothcore/azerothcore-wotlk' }}-${{ inputs.pr_number || github.event.client_payload.pr_number }}
   cancel-in-progress: false
 
 jobs:
@@ -34,20 +42,27 @@ jobs:
       - name: Resolve eligible PR
         id: pr
         env:
+          SOURCE_REPOSITORY: ${{ inputs.source_repository || github.event.client_payload.source_repository || 'azerothcore/azerothcore-wotlk' }}
           PR_NUMBER: ${{ inputs.pr_number || github.event.client_payload.pr_number }}
           MODULES: ${{ inputs.modules || github.event.client_payload.modules }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          case "$SOURCE_REPOSITORY" in
+            azerothcore/azerothcore-wotlk|moostigre/azerothcore-wotlk) ;;
+            *) echo "Source repository is not allowlisted" >&2; exit 1 ;;
+          esac
           case "$PR_NUMBER" in (*[!0-9]*|'') exit 1;; esac
           response="$(curl --fail --silent --show-error \
             -H 'Accept: application/vnd.github+json' \
             -H 'X-GitHub-Api-Version: 2022-11-28' \
-            "https://api.github.com/repos/azerothcore/azerothcore-wotlk/pulls/$PR_NUMBER")"
+            "https://api.github.com/repos/$SOURCE_REPOSITORY/pulls/$PR_NUMBER")"
           test "$(jq -r .state <<<"$response")" = open
           test "$(jq -r .draft <<<"$response")" = false
           sha="$(jq -r .head.sha <<<"$response")"
           test "${#sha}" = 40
-          test "$(git ls-remote https://github.com/azerothcore/azerothcore-wotlk.git "refs/pull/$PR_NUMBER/head" | cut -f1)" = "$sha"
+          test "$(git ls-remote "https://github.com/$SOURCE_REPOSITORY.git" "refs/pull/$PR_NUMBER/head" | cut -f1)" = "$sha"
+          echo "repository=$SOURCE_REPOSITORY" >> "$GITHUB_OUTPUT"
+          echo "tag_source=${SOURCE_REPOSITORY//\//-}" >> "$GITHUB_OUTPUT"
           echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           module_refs=()
@@ -79,12 +94,13 @@ jobs:
         env:
           CALLBACK_URL: ${{ secrets.TESTREALM_CATALOG_URL }}
           CALLBACK_SECRET: ${{ secrets.TESTREALM_CATALOG_SECRET }}
+          SOURCE_REPOSITORY: ${{ steps.pr.outputs.repository }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         run: |
           [ "$CALLBACK_URL" = "https://test.expanded.space" ]
           [ -n "$CALLBACK_SECRET" ]
-          body="$(jq -nc --argjson run_id "$GITHUB_RUN_ID" --argjson pr "$PR_NUMBER" \
-            '{run_id:$run_id,pr_number:$pr,progress_percent:3,detail:"Build runner connected; preparing AzerothCore compilation"}')"
+          body="$(jq -nc --argjson run_id "$GITHUB_RUN_ID" --arg repository "$SOURCE_REPOSITORY" --argjson pr "$PR_NUMBER" \
+            '{run_id:$run_id,source_repository:$repository,pr_number:$pr,progress_percent:3,detail:"Build runner connected; preparing AzerothCore compilation"}')"
           timestamp="$(date +%s)"
           signature="$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$CALLBACK_SECRET" -hex | awk '{print $2}')"
           curl --fail --silent --show-error --max-time 10 -X POST "$CALLBACK_URL/internal/build-progress" \
@@ -106,6 +122,7 @@ jobs:
         env:
           CALLBACK_URL: ${{ secrets.TESTREALM_CATALOG_URL }}
           CALLBACK_SECRET: ${{ secrets.TESTREALM_CATALOG_SECRET }}
+          SOURCE_REPOSITORY: ${{ steps.pr.outputs.repository }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           AC_SHA: ${{ steps.pr.outputs.sha }}
         run: |
@@ -116,10 +133,11 @@ jobs:
             --target gameserver \
             --platform linux/amd64 \
             --push \
+            --build-arg "AC_REPOSITORY=https://github.com/${SOURCE_REPOSITORY}.git" \
             --build-arg "AC_REF=$AC_SHA" \
             --build-arg AC_BUILD_TYPE=Release \
             --build-arg 'AC_MODULES=${{ steps.pr.outputs.module_refs }}' \
-            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr:pr-${PR_NUMBER}-${AC_SHA}" \
+            --tag "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr:${{ steps.pr.outputs.tag_source }}-pr-${PR_NUMBER}-${AC_SHA}" \
             --cache-from type=gha,scope=ac-testrealm-trusted \
             --metadata-file runtime-metadata.json \
             --progress plain 2>&1 | while IFS= read -r line; do
@@ -129,9 +147,9 @@ jobs:
                 if (( percent != last_percent && percent >= 0 && percent <= 100 )); then
                   last_percent="$percent"
                   if [ -n "$CALLBACK_URL" ] && [ -n "$CALLBACK_SECRET" ]; then
-                    body="$(jq -nc --argjson run_id "$GITHUB_RUN_ID" --argjson pr "$PR_NUMBER" \
+                    body="$(jq -nc --argjson run_id "$GITHUB_RUN_ID" --arg repository "$SOURCE_REPOSITORY" --argjson pr "$PR_NUMBER" \
                       --argjson progress "$percent" --arg detail "Compiling AzerothCore — ${percent}%" \
-                      '{run_id:$run_id,pr_number:$pr,progress_percent:$progress,detail:$detail}')"
+                      '{run_id:$run_id,source_repository:$repository,pr_number:$pr,progress_percent:$progress,detail:$detail}')"
                     timestamp="$(date +%s)"
                     signature="$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$CALLBACK_SECRET" -hex | awk '{print $2}')"
                     curl --fail --silent --show-error --max-time 10 -X POST "$CALLBACK_URL/internal/build-progress" \
@@ -155,16 +173,18 @@ jobs:
           platforms: linux/amd64
           push: true
           build-args: |
+            AC_REPOSITORY=https://github.com/${{ steps.pr.outputs.repository }}.git
             AC_REF=${{ steps.pr.outputs.sha }}
             AC_BUILD_TYPE=Release
             AC_MODULES=${{ steps.pr.outputs.module_refs }}
-          tags: ghcr.io/${{ github.repository_owner }}/tc9-ac-pr-dbimport:pr-${{ steps.pr.outputs.number }}-${{ steps.pr.outputs.sha }}
+          tags: ghcr.io/${{ github.repository_owner }}/tc9-ac-pr-dbimport:${{ steps.pr.outputs.tag_source }}-pr-${{ steps.pr.outputs.number }}-${{ steps.pr.outputs.sha }}
           cache-from: type=gha,scope=ac-testrealm-trusted
 
       - name: Publish signed catalogue entry
         env:
           URL: ${{ secrets.TESTREALM_CATALOG_URL }}
           SECRET: ${{ secrets.TESTREALM_CATALOG_SECRET }}
+          SOURCE_REPOSITORY: ${{ steps.pr.outputs.repository }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           SHA: ${{ steps.pr.outputs.sha }}
           RUNTIME_DIGEST: ${{ steps.runtime.outputs.digest }}
@@ -176,12 +196,12 @@ jobs:
             echo "Catalogue callback is not configured; skipping."
             exit 0
           fi
-          body="$(jq -nc --argjson pr "$PR_NUMBER" --arg sha "$SHA" \
+          body="$(jq -nc --arg repository "$SOURCE_REPOSITORY" --argjson pr "$PR_NUMBER" --arg sha "$SHA" \
             --arg image "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr@${RUNTIME_DIGEST}" \
             --arg importer "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tc9-ac-pr-dbimport@${IMPORTER_DIGEST}" \
             --argjson modules "$MODULES_JSON" \
             --arg build_profile "$BUILD_PROFILE" \
-            '{pr_number:$pr,sha:$sha,image:$image,importer_image:$importer,modules:$modules,build_profile:$build_profile}')"
+            '{source_repository:$repository,pr_number:$pr,sha:$sha,image:$image,importer_image:$importer,modules:$modules,build_profile:$build_profile}')"
           timestamp="$(date +%s)"
           signature="$(printf '%s.%s' "$timestamp" "$body" | openssl dgst -sha256 -hmac "$SECRET" -hex | awk '{print $2}')"
           curl --fail --silent --show-error -X POST "$URL/internal/catalogue" \
