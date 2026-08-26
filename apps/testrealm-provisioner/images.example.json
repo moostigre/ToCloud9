@@ -1,0 +1,6 @@
+{
+  "12345": {
+    "SHA": "0123456789abcdef0123456789abcdef01234567",
+    "Image": "ghcr.io/azerothcore/azerothcore-wotlk/gameserver-ac@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  }
+}

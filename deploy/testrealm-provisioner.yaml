@@ -1,0 +1,393 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tc9-testrealm-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tc9-testrealm-slot-1
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tc9-testrealm-slot-2
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tc9-testrealm-slot-3
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tc9-testrealm-slot-4
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tc9-testrealm-slot-5
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: testrealm-provisioner
+  namespace: tc9-testrealm-system
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: testrealm-slot-manager
+  namespace: tc9-testrealm-slot-1
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, persistentvolumeclaims, pods, pods/log]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: testrealm-provisioner
+  namespace: tc9-testrealm-slot-1
+subjects:
+  - kind: ServiceAccount
+    name: testrealm-provisioner
+    namespace: tc9-testrealm-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: testrealm-slot-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: testrealm-slot-manager
+  namespace: tc9-testrealm-slot-2
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, persistentvolumeclaims, pods, pods/log]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: testrealm-provisioner
+  namespace: tc9-testrealm-slot-2
+subjects:
+  - kind: ServiceAccount
+    name: testrealm-provisioner
+    namespace: tc9-testrealm-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: testrealm-slot-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: testrealm-slot-manager
+  namespace: tc9-testrealm-slot-3
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, persistentvolumeclaims, pods, pods/log]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: testrealm-provisioner
+  namespace: tc9-testrealm-slot-3
+subjects:
+  - kind: ServiceAccount
+    name: testrealm-provisioner
+    namespace: tc9-testrealm-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: testrealm-slot-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: testrealm-slot-manager
+  namespace: tc9-testrealm-slot-4
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, persistentvolumeclaims, pods, pods/log]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: testrealm-provisioner
+  namespace: tc9-testrealm-slot-4
+subjects:
+  - kind: ServiceAccount
+    name: testrealm-provisioner
+    namespace: tc9-testrealm-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: testrealm-slot-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: testrealm-slot-manager
+  namespace: tc9-testrealm-slot-5
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets, services, persistentvolumeclaims, pods, pods/log]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: testrealm-provisioner
+  namespace: tc9-testrealm-slot-5
+subjects:
+  - kind: ServiceAccount
+    name: testrealm-provisioner
+    namespace: tc9-testrealm-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: testrealm-slot-manager
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: testrealm-secrets
+  namespace: tc9-testrealm-system
+type: Opaque
+stringData:
+  activity-hmac-secret: REPLACE_WITH_AT_LEAST_32_RANDOM_CHARACTERS
+  operator-secret: REPLACE_ONLY_WHEN_OPERATOR_IS_ENABLED
+  catalogue-hmac-secret: REPLACE_WITH_AT_LEAST_32_RANDOM_CHARACTERS
+  database-user: REPLACE_WITH_DATABASE_USER
+  database-password: REPLACE_WITH_DATABASE_PASSWORD
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testrealm-images
+  namespace: tc9-testrealm-system
+data:
+  images.json: '{}'
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: testrealm-state
+  namespace: tc9-testrealm-system
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testrealm-provisioner
+  namespace: tc9-testrealm-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: testrealm-provisioner}
+  template:
+    metadata:
+      labels: {app: testrealm-provisioner}
+    spec:
+      serviceAccountName: testrealm-provisioner
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: web
+          image: REPLACE_WITH_PROVISIONER_IMAGE_DIGEST
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: MAX_RUNNING_REALMS, value: "5"}
+            - {name: MAX_CONCURRENT_BUILDS, value: "25"}
+            - {name: BUILD_GITHUB_OWNER, value: moostigre}
+            - {name: BUILD_GITHUB_REPO, value: ToCloud9}
+            - {name: BUILD_GITHUB_WORKFLOW, value: build-ac-pr-testrealm.yml}
+            - {name: BUILD_GITHUB_REF, value: master}
+            - {name: IDLE_AFTER, value: 30m}
+            - {name: PURGE_AFTER, value: 48h}
+            - {name: IMAGE_CATALOG_FILE, value: /data/catalog/images.json}
+            - {name: ALLOWED_IMAGE_PREFIX, value: ghcr.io/moostigre/tc9-ac-pr}
+            - {name: ALLOWED_IMPORTER_PREFIX, value: ghcr.io/moostigre/tc9-ac-pr-dbimport}
+            - {name: REALM_OPERATOR_URL, value: http://testrealm-operator.tc9-testrealm-system.svc.cluster.local}
+            - {name: STATE_FILE, value: /data/testrealm/state.json}
+            - {name: TMPDIR, value: /data/tmp}
+            - name: ACTIVITY_HMAC_SECRET
+              valueFrom: {secretKeyRef: {name: testrealm-secrets, key: activity-hmac-secret}}
+            - name: REALM_OPERATOR_SECRET
+              valueFrom: {secretKeyRef: {name: testrealm-secrets, key: operator-secret}}
+            - name: CATALOGUE_HMAC_SECRET
+              valueFrom: {secretKeyRef: {name: testrealm-secrets, key: catalogue-hmac-secret}}
+            - name: GITHUB_TOKEN
+              valueFrom: {secretKeyRef: {name: testrealm-secrets, key: github-token}}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          readinessProbe: {httpGet: {path: /api/status, port: http}, initialDelaySeconds: 2}
+          livenessProbe: {httpGet: {path: /api/status, port: http}, initialDelaySeconds: 10}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            readOnlyRootFilesystem: true
+          workingDir: /data
+          volumeMounts:
+            - {name: state, mountPath: /data}
+            - {name: images, mountPath: /data/config, readOnly: true}
+      volumes:
+        - name: state
+          persistentVolumeClaim: {claimName: testrealm-state}
+        - name: images
+          configMap: {name: testrealm-images}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: testrealm-provisioner
+  namespace: tc9-testrealm-system
+spec:
+  selector: {app: testrealm-provisioner}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: testrealm-operator
+  namespace: tc9-testrealm-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: testrealm-operator, namespace: tc9-testrealm-slot-1}
+subjects: [{kind: ServiceAccount, name: testrealm-operator, namespace: tc9-testrealm-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: testrealm-slot-manager}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: testrealm-operator, namespace: tc9-testrealm-slot-2}
+subjects: [{kind: ServiceAccount, name: testrealm-operator, namespace: tc9-testrealm-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: testrealm-slot-manager}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: testrealm-operator, namespace: tc9-testrealm-slot-3}
+subjects: [{kind: ServiceAccount, name: testrealm-operator, namespace: tc9-testrealm-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: testrealm-slot-manager}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: testrealm-operator, namespace: tc9-testrealm-slot-4}
+subjects: [{kind: ServiceAccount, name: testrealm-operator, namespace: tc9-testrealm-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: testrealm-slot-manager}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: testrealm-operator, namespace: tc9-testrealm-slot-5}
+subjects: [{kind: ServiceAccount, name: testrealm-operator, namespace: tc9-testrealm-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: testrealm-slot-manager}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: testrealm-shared-services, namespace: tc9-ptr}
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [ptr-databases-config]
+    verbs: [get, patch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [ptr-tocloud9-charserver, ptr-tocloud9-chatserver, ptr-tocloud9-guidserver, ptr-tocloud9-guildserver, ptr-tocloud9-groupserver, ptr-tocloud9-mailserver, ptr-tocloud9-auctionhouse, ptr-tocloud9-matchmakingserver]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: testrealm-operator, namespace: tc9-ptr}
+subjects: [{kind: ServiceAccount, name: testrealm-operator, namespace: tc9-testrealm-system}]
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: testrealm-shared-services}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: testrealm-operator, namespace: tc9-testrealm-system}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: testrealm-operator}}
+  template:
+    metadata: {labels: {app: testrealm-operator}}
+    spec:
+      serviceAccountName: testrealm-operator
+      automountServiceAccountToken: true
+      containers:
+        - name: operator
+          image: REPLACE_WITH_OPERATOR_IMAGE_DIGEST
+          ports: [{name: http, containerPort: 8080}]
+          env:
+            - {name: PUBLIC_ADDRESS, value: "logon.expanded.space"}
+            - {name: TC9_GATEWAY_IMAGE, value: "tc9/gateway:layering-c42a0cd"}
+            - name: OPERATOR_HMAC_SECRET
+              valueFrom: {secretKeyRef: {name: testrealm-secrets, key: operator-secret}}
+            - name: TC9_DB_USER
+              valueFrom: {secretKeyRef: {name: testrealm-secrets, key: database-user}}
+            - name: TC9_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: testrealm-secrets, key: database-password}}
+          resources:
+            requests: {cpu: 25m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          readinessProbe: {httpGet: {path: /healthz, port: http}, initialDelaySeconds: 2}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: testrealm-operator, namespace: tc9-testrealm-system}
+spec:
+  selector: {app: testrealm-operator}
+  ports: [{name: http, port: 80, targetPort: http}]

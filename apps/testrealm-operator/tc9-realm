@@ -1,0 +1,347 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+action="$1" realm_key="$2" namespace="$3" realm_id="$4" pr_number="$5" commit_sha="$6" runtime_image="$7" importer_image="$8"
+case "$namespace:$realm_id" in tc9-testrealm-slot-1:2|tc9-testrealm-slot-2:3|tc9-testrealm-slot-3:4|tc9-testrealm-slot-4:5|tc9-testrealm-slot-5:6);; *) exit 2;; esac
+case "$action" in provision|inspect|suspend|resume|delete);; *) exit 2;; esac
+
+db_host="ptr-mysql.tc9-ptr.svc.cluster.local"
+db_user="${TC9_DB_USER:?}"
+db_password="${TC9_DB_PASSWORD:?}"
+char_db="tc9_testrealm_${realm_id}_characters"
+world_db="tc9_testrealm_${realm_id}_world"
+warm_db="tc9_testrealm_${realm_id}_world_warm"
+realm_name="PR ${pr_number} Test"
+gateway_port="$((32758 + realm_id))"
+labels="app.kubernetes.io/managed-by=testrealm-operator,tc9.realm-slot=${realm_id}"
+
+mysql_exec() { MYSQL_PWD="$db_password" mysql --protocol=TCP -h "$db_host" -u "$db_user" "$@"; }
+progress() { printf 'TC9_PROGRESS\t%s\t%s\t%s\n' "$1" "$2" "$3"; }
+wait_deployment() {
+  local ns="$1" name="$2" phase="$3" pct="$4" detail="$5" timeout="$6" started desired ready elapsed
+  started="$(date +%s)"
+  while true; do
+    desired="$(kubectl -n "$ns" get deployment "$name" -o jsonpath='{.spec.replicas}')"
+    ready="$(kubectl -n "$ns" get deployment "$name" -o jsonpath='{.status.availableReplicas}' 2>/dev/null || true)"; ready="${ready:-0}"
+    elapsed="$(( $(date +%s) - started ))"
+    progress "$phase" "$pct" "$detail: ${ready} of ${desired} replicas ready (${elapsed}s elapsed)"
+    [[ "$ready" == "$desired" ]] && return 0
+    if (( elapsed >= timeout )); then kubectl -n "$ns" describe deployment "$name" >&2; return 1; fi
+    sleep 5
+  done
+}
+start_warm_database() {
+  kubectl -n "$namespace" create secret generic testrealm-db --from-literal=user="$db_user" --from-literal=password="$db_password" --dry-run=client -o yaml | kubectl label --local -f - app.kubernetes.io/managed-by=testrealm-operator tc9.realm-slot="$realm_id" -o yaml | kubectl apply -f -
+  kubectl -n "$namespace" delete job/testrealm-db-warm --ignore-not-found --wait=true
+  cat <<WARMYAML | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: testrealm-db-warm
+  namespace: ${namespace}
+  labels: {app.kubernetes.io/managed-by: testrealm-operator, tc9.realm-slot: "${realm_id}"}
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: warm
+        image: mysql:8.0
+        env:
+        - {name: MYSQL_PWD, valueFrom: {secretKeyRef: {name: testrealm-db, key: password}}}
+        command: [bash, -ec]
+        args:
+        - |
+          mysql -h ${db_host} -u ${db_user} -e 'DROP DATABASE IF EXISTS \`${warm_db}\`; CREATE DATABASE \`${warm_db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+          mysqldump --single-transaction --quick -h ${db_host} -u ${db_user} acore_world | mysql -h ${db_host} -u ${db_user} ${warm_db}
+WARMYAML
+}
+
+refresh_shared_connections() {
+  connection="1:${db_user}:${db_password}@tcp(${db_host}:3306)/acore_characters"
+  for candidate in 2 3; do
+    candidate_db="tc9_testrealm_${candidate}_characters"
+    exists="$(mysql_exec -Nse "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='${candidate_db}'")"
+    if [[ "$exists" == 1 ]]; then connection="${connection};${candidate}:${db_user}:${db_password}@tcp(${db_host}:3306)/${candidate_db}"; fi
+  done
+  encoded="$(printf %s "$connection" | base64 | tr -d '\n')"
+  kubectl -n tc9-ptr patch secret ptr-databases-config --type merge -p "{\"data\":{\"CHAR_DB_CONNECTION\":\"${encoded}\"}}"
+  deployments=(charserver chatserver guidserver guildserver groupserver mailserver auctionhouse matchmakingserver)
+  for component in "${deployments[@]}"; do kubectl -n tc9-ptr rollout restart "deployment/ptr-tocloud9-${component}"; done
+  for component in "${deployments[@]}"; do kubectl -n tc9-ptr rollout status "deployment/ptr-tocloud9-${component}" --timeout=180s; done
+}
+
+if [[ "$action" == suspend ]]; then
+  kubectl -n "$namespace" scale deployment/testrealm-gateway deployment/testrealm-gameserver --replicas=0
+  mysql_exec -e "UPDATE acore_auth.realmlist SET flag=(flag | 2) WHERE id=${realm_id};"
+  exit
+fi
+if [[ "$action" == resume ]]; then
+  kubectl -n "$namespace" scale deployment/testrealm-gateway deployment/testrealm-gameserver --replicas=1
+  kubectl -n "$namespace" rollout status deployment/testrealm-gateway --timeout=180s
+  kubectl -n "$namespace" rollout status deployment/testrealm-gameserver --timeout=600s
+  mysql_exec -e "UPDATE acore_auth.realmlist SET flag=(flag & 253) WHERE id=${realm_id};"
+  exit
+fi
+if [[ "$action" == inspect ]]; then
+  replicas="$(kubectl -n "$namespace" get deployment testrealm-gateway -o jsonpath='{.spec.replicas}')"
+  if [[ "${replicas:-0}" == 0 ]]; then
+    printf '{"active_connections":0}\n'
+    exit
+  fi
+  pod_ip="$(kubectl -n "$namespace" get pods -l app=testrealm-gateway --field-selector=status.phase=Running -o jsonpath='{.items[0].status.podIP}')"
+  [[ -n "$pod_ip" ]]
+  active_connections="$(curl --fail --silent --show-error --max-time 5 "http://${pod_ip}:8900/metrics" | awk '$1 == "active_connections" { print $2; found=1; exit } END { if (!found) exit 1 }')"
+  [[ "$active_connections" =~ ^[0-9]+([.][0-9]+)?$ ]]
+  printf '{"active_connections":%.0f}\n' "$active_connections"
+  exit
+fi
+if [[ "$action" == delete ]]; then
+  kubectl -n "$namespace" delete deployment,service,job,configmap,secret,pvc -l app.kubernetes.io/managed-by=testrealm-operator --ignore-not-found --wait=true
+  mysql_exec -e "DELETE FROM acore_auth.realmlist WHERE id=${realm_id}; DROP DATABASE IF EXISTS \`${char_db}\`; DROP DATABASE IF EXISTS \`${world_db}\`;"
+  refresh_shared_connections
+  # Refill the free slot asynchronously. A later provision can promote this
+  # immutable baseline with metadata-only table renames instead of dumping it.
+  start_warm_database
+  exit
+fi
+
+if [[ "$(jq -r '.realm_only' <<<"$TC9_FIXTURE_JSON")" != true ]]; then
+  echo "Character fixtures are not enabled in the first infrastructure POC" >&2
+  exit 3
+fi
+
+progress prepare 3 "Cleaning the assigned realm slot"
+# Keep the slot's immutable client-data cache across retries; explicit realm
+# deletion still removes the PVC and its disk usage.
+kubectl -n "$namespace" delete deployment,service,job,configmap,secret -l app.kubernetes.io/managed-by=testrealm-operator --ignore-not-found --wait=true
+mysql_exec -e "DROP DATABASE IF EXISTS \`${char_db}\`; DROP DATABASE IF EXISTS \`${world_db}\`; CREATE DATABASE \`${char_db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE \`${world_db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+progress prepare 8 "Created isolated world and character databases"
+
+kubectl -n "$namespace" create secret generic testrealm-db --from-literal=user="$db_user" --from-literal=password="$db_password" --dry-run=client -o yaml | kubectl label --local -f - app.kubernetes.io/managed-by=testrealm-operator tc9.realm-slot="$realm_id" -o yaml | kubectl apply -f -
+
+warm_tables="$(mysql_exec -Nse "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${warm_db}' AND table_type='BASE TABLE'")"
+promoted=false
+if (( warm_tables >= 300 )); then
+  progress database_clone 15 "Promoting the preloaded world baseline"
+  mysql_exec <<SQL
+SET SESSION group_concat_max_len=16777216;
+SELECT CONCAT('RENAME TABLE ', GROUP_CONCAT(CONCAT('\`${warm_db}\`.\`', table_name, '\` TO \`${world_db}\`.\`', table_name, '\`') SEPARATOR ',')) INTO @rename_sql FROM information_schema.tables WHERE table_schema='${warm_db}' AND table_type='BASE TABLE';
+PREPARE promote FROM @rename_sql; EXECUTE promote; DEALLOCATE PREPARE promote;
+DROP DATABASE \`${warm_db}\`;
+SQL
+  promoted=true
+  progress database_clone 45 "Preloaded world baseline promoted"
+fi
+
+if [[ "$promoted" != true ]]; then
+cat <<YAML | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: testrealm-db-clone
+  namespace: ${namespace}
+  labels: {app.kubernetes.io/managed-by: testrealm-operator, tc9.realm-slot: "${realm_id}"}
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: clone
+        image: mysql:8.0
+        env:
+        - {name: MYSQL_PWD, valueFrom: {secretKeyRef: {name: testrealm-db, key: password}}}
+        command: [bash, -ec]
+        args:
+        - |
+          # dbimport initializes the character schema from the exact PR. Never
+          # copy live PTR character rows into an isolated test realm.
+          mysqldump --single-transaction --quick -h ${db_host} -u ${db_user} acore_world | mysql -h ${db_host} -u ${db_user} ${world_db}
+YAML
+progress database_clone 10 "Copying the PTR world baseline into the isolated realm"
+source_bytes="$(mysql_exec -Nse "SELECT COALESCE(SUM(data_length+index_length),1) FROM information_schema.tables WHERE table_schema='acore_world'")"
+clone_started="$(date +%s)"
+while true; do
+  succeeded="$(kubectl -n "$namespace" get job testrealm-db-clone -o jsonpath='{.status.succeeded}' 2>/dev/null || true)"
+  failed="$(kubectl -n "$namespace" get job testrealm-db-clone -o jsonpath='{.status.failed}' 2>/dev/null || true)"
+  if [[ "$succeeded" == 1 ]]; then progress database_clone 45 "World baseline copy completed"; break; fi
+  if [[ "${failed:-0}" -gt 0 ]]; then kubectl -n "$namespace" logs job/testrealm-db-clone --tail=100 >&2 || true; exit 1; fi
+  copied_bytes="$(mysql_exec -Nse "SELECT COALESCE(SUM(data_length+index_length),0) FROM information_schema.tables WHERE table_schema='${world_db}'")"
+  clone_pct="$((10 + (copied_bytes * 34 / source_bytes)))"; if (( clone_pct > 44 )); then clone_pct=44; fi
+  elapsed="$(( $(date +%s) - clone_started ))"
+  progress database_clone "$clone_pct" "Copying world data: $((copied_bytes/1024/1024)) of $((source_bytes/1024/1024)) MiB (${elapsed}s elapsed)"
+  sleep 5
+done
+fi
+
+cat <<YAML | kubectl apply -f -
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: testrealm-db-import
+  namespace: ${namespace}
+  labels: {app.kubernetes.io/managed-by: testrealm-operator, tc9.realm-slot: "${realm_id}"}
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: importer
+        image: ${importer_image}
+        imagePullPolicy: IfNotPresent
+        env:
+        - {name: DB_SCHEMA_TYPE, value: ac}
+        # Auth is shared only for accounts and realm discovery. PR database
+        # updates must remain isolated to this realm's private schemas.
+        - {name: AC_UPDATES_ENABLE_DATABASES, value: "6"}
+        - {name: AC_LOGIN_DATABASE_INFO, value: "${db_host};3306;${db_user};${db_password};acore_auth"}
+        - {name: AC_CHARACTER_DATABASE_INFO, value: "${db_host};3306;${db_user};${db_password};${char_db}"}
+        - {name: AC_WORLD_DATABASE_INFO, value: "${db_host};3306;${db_user};${db_password};${world_db}"}
+YAML
+progress database_import -1 "Applying PR-specific world and character database changes"
+import_started="$(date +%s)"
+while true; do
+  succeeded="$(kubectl -n "$namespace" get job testrealm-db-import -o jsonpath='{.status.succeeded}' 2>/dev/null || true)"
+  failed="$(kubectl -n "$namespace" get job testrealm-db-import -o jsonpath='{.status.failed}' 2>/dev/null || true)"
+  applied="$(kubectl -n "$namespace" logs job/testrealm-db-import 2>/dev/null | grep -cE '>> (Applying|Reapplying)' || true)"
+  elapsed="$(( $(date +%s) - import_started ))"
+  if [[ "$succeeded" == 1 ]]; then progress database_import 65 "PR database import completed (${applied} SQL files processed)"; break; fi
+  if [[ "${failed:-0}" -gt 0 ]]; then kubectl -n "$namespace" logs job/testrealm-db-import --tail=120 >&2 || true; exit 1; fi
+  progress database_import -1 "Applying PR database changes: ${applied} SQL files processed (${elapsed}s elapsed)"
+  sleep 5
+done
+
+progress cluster 68 "Registering the realm and refreshing shared TC9 database routing"
+mysql_exec -e "INSERT INTO acore_auth.realmlist (id,name,address,localAddress,localSubnetMask,port,icon,flag,timezone,allowedSecurityLevel,population,gamebuild) VALUES (${realm_id},'${realm_name}','${PUBLIC_ADDRESS:-163.172.51.144}','127.0.0.1','255.255.255.0',${gateway_port},1,0,1,0,0,12340) ON DUPLICATE KEY UPDATE name=VALUES(name),address=VALUES(address),port=VALUES(port),flag=0; INSERT IGNORE INTO acore_auth.account_access (id,gmlevel,RealmID,comment) VALUES (1,3,${realm_id},'test realm admin');"
+refresh_shared_connections
+progress cluster 75 "TC9 services now route realm-specific character data"
+
+sed "s/^RealmID = .*/RealmID = ${realm_id}/" /opt/tc9/worldserver.conf > /tmp/worldserver.conf
+kubectl -n "$namespace" create configmap testrealm-worldserver --from-file=worldserver.conf=/tmp/worldserver.conf --dry-run=client -o yaml | kubectl label --local -f - app.kubernetes.io/managed-by=testrealm-operator tc9.realm-slot="$realm_id" -o yaml | kubectl apply -f -
+
+cat <<YAML | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: testrealm-data
+  namespace: ${namespace}
+  labels: {app.kubernetes.io/managed-by: testrealm-operator, tc9.realm-slot: "${realm_id}"}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: {requests: {storage: 10Gi}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testrealm-gateway
+  namespace: ${namespace}
+  labels: {app.kubernetes.io/managed-by: testrealm-operator, tc9.realm-slot: "${realm_id}"}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: testrealm-gateway}}
+  template:
+    metadata: {labels: {app: testrealm-gateway, tc9.realm-slot: "${realm_id}"}}
+    spec:
+      containers:
+      - name: gateway
+        image: ${TC9_GATEWAY_IMAGE:?}
+        imagePullPolicy: IfNotPresent
+        env:
+        - {name: REALM_ID, value: "${realm_id}"}
+        - {name: PREFERRED_HOSTNAME, value: "${PUBLIC_ADDRESS:-163.172.51.144}"}
+        - {name: PORT, value: "${gateway_port}"}
+        - {name: HEALTH_CHECK_PORT, value: "8900"}
+        - {name: REDIS_URL, value: "redis://ptr-redis-headless.tc9-ptr.svc.cluster.local:6379/0"}
+        - {name: NATS_URL, value: "nats://ptr-nats.tc9-ptr.svc.cluster.local:4222"}
+        - {name: SERVERS_REGISTRY_SERVICE_ADDRESS, value: "ptr-servers-registry.tc9-ptr.svc.cluster.local:8999"}
+        - {name: CHAR_SERVICE_ADDRESS, value: "ptr-charserver.tc9-ptr.svc.cluster.local:8087"}
+        - {name: CHAT_SERVICE_ADDRESS, value: "ptr-chatserver.tc9-ptr.svc.cluster.local:8992"}
+        - {name: GUILDS_SERVICE_ADDRESS, value: "ptr-guildserver.tc9-ptr.svc.cluster.local:8995"}
+        - {name: MAIL_SERVICE_ADDRESS, value: "ptr-mailserver.tc9-ptr.svc.cluster.local:8997"}
+        - {name: AUCTION_HOUSE_SERVICE_ADDRESS, value: "ptr-auctionhouse.tc9-ptr.svc.cluster.local:8993"}
+        - {name: GROUP_SERVICE_ADDRESS, value: "ptr-groupserver.tc9-ptr.svc.cluster.local:8998"}
+        - {name: DB_SCHEMA_TYPE, value: ac}
+        - {name: AUTH_DB_CONNECTION, value: "${db_user}:${db_password}@tcp(${db_host}:3306)/acore_auth"}
+        ports: [{name: gateway, containerPort: ${gateway_port}}, {name: health, containerPort: 8900}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: testrealm-gateway
+  namespace: ${namespace}
+  labels: {app.kubernetes.io/managed-by: testrealm-operator, tc9.realm-slot: "${realm_id}"}
+spec:
+  type: NodePort
+  selector: {app: testrealm-gateway}
+  ports: [{name: gateway, port: ${gateway_port}, targetPort: ${gateway_port}, nodePort: ${gateway_port}}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testrealm-gameserver
+  namespace: ${namespace}
+  labels: {app.kubernetes.io/managed-by: testrealm-operator, tc9.realm-slot: "${realm_id}"}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: testrealm-gameserver}}
+  template:
+    metadata: {labels: {app: testrealm-gameserver, tc9.realm-slot: "${realm_id}"}}
+    spec:
+      initContainers:
+      - name: data
+        image: alpine:3.21
+        command: [sh, -ec]
+        args: ['if [ ! -d /data/dbc ]; then apk add --no-cache curl unzip; curl --fail --location --retry 5 -o /data/data.zip https://github.com/wowgaming/client-data/releases/download/v20.0/Data.zip; cd /data; unzip -q data.zip; rm data.zip; fi']
+        volumeMounts: [{name: data, mountPath: /data}]
+      containers:
+      - name: gameserver
+        image: ${runtime_image}
+        imagePullPolicy: IfNotPresent
+        tty: true
+        stdin: true
+        env:
+        - {name: PORT, value: "9509"}
+        - {name: GRPC_PORT, value: "9509"}
+        - {name: TC9_GRPC_PORT, value: "9509"}
+        - {name: HEALTH_CHECK_PORT, value: "9604"}
+        - {name: TC9_HEALTH_CHECK_PORT, value: "9604"}
+        - {name: GUID_PROVIDER_SERVICE_ADDRESS, value: "ptr-guidserver.tc9-ptr.svc.cluster.local:8996"}
+        - {name: SERVERS_REGISTRY_SERVICE_ADDRESS, value: "ptr-servers-registry.tc9-ptr.svc.cluster.local:8999"}
+        - {name: TC9_SERVERS_REGISTRY_ADDRESS, value: "ptr-servers-registry.tc9-ptr.svc.cluster.local:8999"}
+        - {name: NATS_URL, value: "nats://ptr-nats.tc9-ptr.svc.cluster.local:4222"}
+        - {name: TC9_NATS_URL, value: "nats://ptr-nats.tc9-ptr.svc.cluster.local:4222"}
+        - {name: TC9_MATCHMAKING_ADDRESS, value: "ptr-matchmakingserver.tc9-ptr.svc.cluster.local:8994"}
+        - {name: TC9_GUID_PROVIDER_ADDRESS, value: "ptr-guidserver.tc9-ptr.svc.cluster.local:8996"}
+        - {name: TC9_PREFERRED_HOSTNAME, valueFrom: {fieldRef: {fieldPath: metadata.name}}}
+        - {name: DB_SCHEMA_TYPE, value: ac}
+        - {name: CHAR_DB_CONNECTION, value: "${realm_id}:${db_user}:${db_password}@tcp(${db_host}:3306)/${char_db}"}
+        - {name: WORLD_DB_CONNECTION, value: "${db_user}:${db_password}@tcp(${db_host}:3306)/${world_db}"}
+        - {name: AUTH_DB_CONNECTION, value: "${db_user}:${db_password}@tcp(${db_host}:3306)/acore_auth"}
+        - {name: AC_LOGIN_DATABASE_INFO, value: "${db_host};3306;${db_user};${db_password};acore_auth"}
+        - {name: AC_WORLD_DATABASE_INFO, value: "${db_host};3306;${db_user};${db_password};${world_db}"}
+        - {name: AC_CHARACTER_DATABASE_INFO, value: "${db_host};3306;${db_user};${db_password};${char_db}"}
+        - {name: AC_CONSOLE_ENABLE, value: "1"}
+        - {name: AC_DATA_DIR, value: /data}
+        - {name: AC_CLUSTER_ENABLED, value: "1"}
+        - {name: AC_WORLD_SERVER_PORT, value: "9601"}
+        volumeMounts:
+        - {name: config, mountPath: /repo/bin/etc/worldserver.conf, subPath: worldserver.conf}
+        - {name: data, mountPath: /data}
+      volumes:
+      - {name: config, configMap: {name: testrealm-worldserver}}
+      - {name: data, persistentVolumeClaim: {claimName: testrealm-data}}
+YAML
+progress workloads 80 "Starting the realm gateway"
+wait_deployment "$namespace" testrealm-gateway workloads 80 "Starting realm gateway" 180
+progress workloads 88 "Gateway ready; downloading data and starting AzerothCore"
+wait_deployment "$namespace" testrealm-gameserver workloads 88 "Downloading client data and starting AzerothCore" 600
+progress verify 97 "AzerothCore is ready; verifying realm registration"
+registered="$(mysql_exec -Nse "SELECT COUNT(*) FROM acore_auth.realmlist WHERE id=${realm_id} AND flag=0")"
+[[ "$registered" == 1 ]]
+progress ready 100 "Realm registered and ready to play"
