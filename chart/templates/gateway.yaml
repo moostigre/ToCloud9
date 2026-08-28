@@ -34,7 +34,18 @@ spec:
         - name: PORT
           value: "{{ .Values.gateway.port }}"
         - name: REDIS_URL
-          value: redis://{{ .Release.Name }}-redis-headless:6379/0
+          {{- if .Values.gateway.redisExistingSecret }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.gateway.redisExistingSecret | quote }}
+              key: {{ .Values.gateway.redisExistingSecretKey | quote }}
+          {{- else }}
+          value: {{ default (printf "redis://%s-redis-headless:6379/0" .Release.Name) .Values.gateway.redisUrl | quote }}
+          {{- end }}
+        - name: REDIS_CLUSTER
+          value: "{{ .Values.gateway.redisCluster }}"
+        - name: GATEWAY_LIVENESS_TTL_SECONDS
+          value: "{{ .Values.gateway.gatewayLivenessTTLSeconds }}"
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS

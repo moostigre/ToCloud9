@@ -76,6 +76,7 @@ services:
       LOG_LEVEL: 0
       PORT: 8085
       NATS_URL: nats://nats:4222
+      REDIS_URL: redis://redis:6379/0
     profiles:
       - ac
       - tc
@@ -106,6 +107,7 @@ services:
       LOG_LEVEL: 0
       PORT: 8045
       NATS_URL: nats://nats:4222
+      REDIS_URL: redis://redis:6379/0
     profiles:
       - ac
       - tc

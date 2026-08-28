@@ -364,6 +364,9 @@ func TestGameSessionLogin(t *testing.T) {
 	)
 
 	charMock := &charMocks.CharactersServiceClient{}
+	charMock.On("CharactersToLoginForAccount", mock.Anything, mock.Anything).Return(&pbChar.CharactersToLoginForAccountResponse{
+		Characters: []*pbChar.LogInCharacter{{GUID: charID}},
+	}, nil)
 	charMock.On("CharactersToLoginByGUID", mock.Anything, mock.Anything).Return(&pbChar.CharactersToLoginByGUIDResponse{
 		Character: &pbChar.LogInCharacter{GUID: charID, Map: 1},
 	}, nil)
@@ -451,6 +454,39 @@ func TestGameSessionLogin(t *testing.T) {
 	assert.Equal(t, worldSocket, session.worldSocket)
 }
 
+func TestAccountOwnsCharacter(t *testing.T) {
+	charMock := &charMocks.CharactersServiceClient{}
+	charMock.On("CharactersToLoginForAccount", mock.Anything, mock.MatchedBy(func(req *pbChar.CharactersToLoginForAccountRequest) bool {
+		return req.AccountID == 7
+	})).Return(&pbChar.CharactersToLoginForAccountResponse{
+		Characters: []*pbChar.LogInCharacter{{GUID: 11}, {GUID: 12}},
+	}, nil)
+	session := &GameSession{accountID: 7, charServiceClient: charMock}
+
+	owned, err := session.accountOwnsCharacter(context.Background(), 12)
+	assert.NoError(t, err)
+	assert.True(t, owned)
+	owned, err = session.accountOwnsCharacter(context.Background(), 99)
+	assert.NoError(t, err)
+	assert.False(t, owned)
+}
+
+func TestGameSessionRejectsSecondPlayerLogin(t *testing.T) {
+	gameSocket := &mocks.Socket{}
+	gameSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
+		return writer.Opcode == packet.SMsgCharacterLoginFailed
+	})).Once()
+	session := &GameSession{
+		gameSocket: gameSocket,
+		character:  &LoggedInCharacter{GUID: 42},
+	}
+
+	err := session.Login(context.Background(), packet.NewWriter(packet.CMsgPlayerLogin).Uint64(42).ToPacket())
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(42), session.character.GUID)
+	gameSocket.AssertExpectations(t)
+}
+
 func dumpHandleMap(m map[packet.Opcode]HandlersQueue) map[packet.Opcode]HandlersQueue {
 	dumpHandleMap := map[packet.Opcode]HandlersQueue{}
 	for k, v := range m {
@@ -504,4 +540,85 @@ func TestOnLoggedOutClearsGroupMemberStats(t *testing.T) {
 	session.onLoggedOut()
 
 	assert.Nil(t, session.groupMemberStats, "stale group member stats would be answered as online after relogin")
+}
+
+func TestWorldReconnectFailureReturnsToCharacterSelectionAndReleasesOwnership(t *testing.T) {
+	producer := &gwProducerMock.GatewayProducer{}
+	producer.On("CharacterLoggedOut", mock.Anything).Return(nil)
+	broadcaster := &ebroadMock.Broadcaster{}
+	broadcaster.On("UnregisterCharacter", uint64(40554)).Return(nil)
+	chatChannels := eBroadcaster.NewChatChannelsService()
+	coordinator := &ownershipTestCoordinator{}
+	socket := newOwnershipTestSocket()
+	logger := zerolog.Nop()
+
+	session := NewGameSession(context.Background(), &logger, socket, 7, nil, GameSessionParams{
+		EventsProducer:               producer,
+		EventsBroadcaster:            broadcaster,
+		ChatChannelsEventBroadcaster: chatChannels,
+		SessionOwnership:             coordinator,
+	})
+	session.character = &LoggedInCharacter{GUID: 40554, AccountID: 7}
+	session.channelMembership = NewChannelMembership(40554, chatChannels)
+
+	session.returnToCharacterSelectionAfterWorldFailure()
+
+	assert.Nil(t, session.character)
+	coordinator.mu.Lock()
+	assert.Equal(t, uint64(40554), coordinator.releasedCharacter)
+	coordinator.mu.Unlock()
+	select {
+	case <-socket.closed:
+		t.Fatal("world reconnect failure closed the authenticated game session")
+	default:
+	}
+	select {
+	case response := <-socket.write:
+		assert.Equal(t, packet.SMsgCharacterLoginFailed, response.Opcode)
+	default:
+		t.Fatal("world reconnect failure did not return the client to character selection")
+	}
+}
+
+func TestHandlePacketsCancelsAndJoinsWorldReconnectBeforeTeardown(t *testing.T) {
+	producer := &gwProducerMock.GatewayProducer{}
+	producer.On("CharacterLoggedOut", mock.Anything).Return(nil)
+	broadcaster := &ebroadMock.Broadcaster{}
+	broadcaster.On("UnregisterCharacter", uint64(40555)).Return(nil)
+	chatChannels := eBroadcaster.NewChatChannelsService()
+	gameRead := make(chan *packet.Packet)
+	worldRead := make(chan *packet.Packet)
+	close(worldRead)
+	gameSocket := &mocks.Socket{}
+	gameSocket.On("ReadChannel").Return((<-chan *packet.Packet)(gameRead))
+	gameSocket.On("Send", mock.Anything).Maybe()
+	worldSocket := &mocks.Socket{}
+	worldSocket.On("ReadChannel").Return((<-chan *packet.Packet)(worldRead))
+	logger := zerolog.Nop()
+	session := NewGameSession(context.Background(), &logger, gameSocket, 7, nil, GameSessionParams{
+		EventsProducer:               producer,
+		EventsBroadcaster:            broadcaster,
+		ChatChannelsEventBroadcaster: chatChannels,
+	})
+	session.character = &LoggedInCharacter{GUID: 40555, AccountID: 7}
+	session.channelMembership = NewChannelMembership(40555, chatChannels)
+	session.worldSocket = worldSocket
+	done := make(chan struct{})
+	go func() {
+		session.HandlePackets(context.Background())
+		close(done)
+	}()
+	time.Sleep(50 * time.Millisecond)
+	close(gameRead)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("session teardown did not cancel and join world reconnect work")
+	}
+	select {
+	case <-session.sessionDone:
+	default:
+		t.Fatal("session handler returned before publishing completed teardown")
+	}
 }

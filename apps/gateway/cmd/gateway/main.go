@@ -9,6 +9,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	redis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
@@ -19,11 +20,11 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/service"
 	"github.com/walkline/ToCloud9/apps/gateway/session"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets/gamesocket"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
-	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMM "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -102,6 +103,27 @@ func main() {
 	}
 	defer nc.Close()
 
+	redisClient, err := newRedisClient(conf.RedisConnection, conf.RedisCluster)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't configure redis for session ownership")
+	}
+	defer redisClient.Close()
+	if err = redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Fatal().Err(err).Msg("can't connect to redis for session ownership")
+	}
+	sessionOwnership := service.NewSessionOwnershipService(
+		redisClient, nc, &log.Logger, root.RetrievedGatewayID, root.RealmID,
+		time.Duration(conf.GatewayLivenessTTLSeconds)*time.Second,
+	)
+	defer sessionOwnership.Close()
+	if err = sessionOwnership.Listen(); err != nil {
+		log.Fatal().Err(err).Msg("can't start session ownership")
+	}
+	go func() {
+		<-sessionOwnership.Done()
+		log.Fatal().Msg("session ownership fencing was lost; terminating gateway")
+	}()
+
 	chatChannelsBroadcasterService := eventsBroadcaster.NewChatChannelsService()
 	broadcaster := eventsBroadcaster.NewBroadcaster(chatChannelsBroadcasterService)
 
@@ -179,6 +201,7 @@ func main() {
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
+			SessionOwnership:                 sessionOwnership,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()
@@ -188,6 +211,31 @@ func main() {
 			s.ListenAndProcess(context.Background())
 		}()
 	}
+}
+
+func newRedisClient(connection string, cluster bool) (redis.UniversalClient, error) {
+	if cluster {
+		options, err := redis.ParseClusterURL(connection)
+		if err != nil {
+			return nil, err
+		}
+		options.ContextTimeoutEnabled = true
+		options.MaxRetries = -1
+		options.DialTimeout = time.Second
+		options.ReadTimeout = time.Second
+		options.WriteTimeout = time.Second
+		return redis.NewClusterClient(options), nil
+	}
+	options, err := redis.ParseURL(connection)
+	if err != nil {
+		return nil, err
+	}
+	options.ContextTimeoutEnabled = true
+	options.MaxRetries = -1
+	options.DialTimeout = time.Second
+	options.ReadTimeout = time.Second
+	options.WriteTimeout = time.Second
+	return redis.NewClient(options), nil
 }
 
 func charService(cnf *config.Config) pbChar.CharactersServiceClient {

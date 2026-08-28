@@ -155,6 +155,13 @@ matchmakingserver:
 
 gateway:
   replicaCount: 3
+  # Leave empty to use the bundled standalone Redis service. Set this URL (or
+  # redisExistingSecret) when redis.enabled=false or when using Redis Cluster.
+  redisUrl: ""
+  redisExistingSecret: ""
+  redisExistingSecretKey: redis-url
+  redisCluster: false
+  gatewayLivenessTTLSeconds: 15
   # IP or domain to access this gateway.
   # If empty - uses node IP.
   hostname: ""
