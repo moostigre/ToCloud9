@@ -180,6 +180,15 @@ func TC9InitLib(port uint16, realmID uint32, isCrossRealm bool, availableMaps *C
 //
 //export TC9GracefulShutdown
 func TC9GracefulShutdown() {
+	if AssignedGameServerID != "" {
+		_, err := registryClient.UnregisterGameServer(context.Background(), &pb.UnregisterGameServerRequest{
+			Api:          libVer,
+			GameServerID: AssignedGameServerID,
+		})
+		if err != nil {
+			log.Error().Err(err).Str("serverID", AssignedGameServerID).Msg("couldn't unregister game server")
+		}
+	}
 	shutdownFunc()
 }
 

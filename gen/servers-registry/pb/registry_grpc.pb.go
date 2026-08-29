@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	ServersRegistryService_RegisterGameServer_FullMethodName                 = "/v1.ServersRegistryService/RegisterGameServer"
+	ServersRegistryService_UnregisterGameServer_FullMethodName               = "/v1.ServersRegistryService/UnregisterGameServer"
 	ServersRegistryService_AvailableGameServersForMapAndRealm_FullMethodName = "/v1.ServersRegistryService/AvailableGameServersForMapAndRealm"
 	ServersRegistryService_RandomGameServerForRealm_FullMethodName           = "/v1.ServersRegistryService/RandomGameServerForRealm"
 	ServersRegistryService_ListGameServersForRealm_FullMethodName            = "/v1.ServersRegistryService/ListGameServersForRealm"
@@ -39,6 +40,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ServersRegistryServiceClient interface {
 	RegisterGameServer(ctx context.Context, in *RegisterGameServerRequest, opts ...grpc.CallOption) (*RegisterGameServerResponse, error)
+	UnregisterGameServer(ctx context.Context, in *UnregisterGameServerRequest, opts ...grpc.CallOption) (*UnregisterGameServerResponse, error)
 	AvailableGameServersForMapAndRealm(ctx context.Context, in *AvailableGameServersForMapAndRealmRequest, opts ...grpc.CallOption) (*AvailableGameServersForMapAndRealmResponse, error)
 	RandomGameServerForRealm(ctx context.Context, in *RandomGameServerForRealmRequest, opts ...grpc.CallOption) (*RandomGameServerForRealmResponse, error)
 	ListGameServersForRealm(ctx context.Context, in *ListGameServersForRealmRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error)
@@ -64,6 +66,15 @@ func NewServersRegistryServiceClient(cc grpc.ClientConnInterface) ServersRegistr
 func (c *serversRegistryServiceClient) RegisterGameServer(ctx context.Context, in *RegisterGameServerRequest, opts ...grpc.CallOption) (*RegisterGameServerResponse, error) {
 	out := new(RegisterGameServerResponse)
 	err := c.cc.Invoke(ctx, ServersRegistryService_RegisterGameServer_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serversRegistryServiceClient) UnregisterGameServer(ctx context.Context, in *UnregisterGameServerRequest, opts ...grpc.CallOption) (*UnregisterGameServerResponse, error) {
+	out := new(UnregisterGameServerResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_UnregisterGameServer_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +194,7 @@ func (c *serversRegistryServiceClient) ListGatewaysForRealm(ctx context.Context,
 // for forward compatibility
 type ServersRegistryServiceServer interface {
 	RegisterGameServer(context.Context, *RegisterGameServerRequest) (*RegisterGameServerResponse, error)
+	UnregisterGameServer(context.Context, *UnregisterGameServerRequest) (*UnregisterGameServerResponse, error)
 	AvailableGameServersForMapAndRealm(context.Context, *AvailableGameServersForMapAndRealmRequest) (*AvailableGameServersForMapAndRealmResponse, error)
 	RandomGameServerForRealm(context.Context, *RandomGameServerForRealmRequest) (*RandomGameServerForRealmResponse, error)
 	ListGameServersForRealm(context.Context, *ListGameServersForRealmRequest) (*ListGameServersResponse, error)
@@ -204,6 +216,9 @@ type UnimplementedServersRegistryServiceServer struct {
 
 func (UnimplementedServersRegistryServiceServer) RegisterGameServer(context.Context, *RegisterGameServerRequest) (*RegisterGameServerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterGameServer not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) UnregisterGameServer(context.Context, *UnregisterGameServerRequest) (*UnregisterGameServerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnregisterGameServer not implemented")
 }
 func (UnimplementedServersRegistryServiceServer) AvailableGameServersForMapAndRealm(context.Context, *AvailableGameServersForMapAndRealmRequest) (*AvailableGameServersForMapAndRealmResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AvailableGameServersForMapAndRealm not implemented")
@@ -269,6 +284,24 @@ func _ServersRegistryService_RegisterGameServer_Handler(srv interface{}, ctx con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ServersRegistryServiceServer).RegisterGameServer(ctx, req.(*RegisterGameServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServersRegistryService_UnregisterGameServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnregisterGameServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).UnregisterGameServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_UnregisterGameServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).UnregisterGameServer(ctx, req.(*UnregisterGameServerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -499,6 +532,10 @@ var ServersRegistryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RegisterGameServer",
 			Handler:    _ServersRegistryService_RegisterGameServer_Handler,
+		},
+		{
+			MethodName: "UnregisterGameServer",
+			Handler:    _ServersRegistryService_UnregisterGameServer_Handler,
 		},
 		{
 			MethodName: "AvailableGameServersForMapAndRealm",

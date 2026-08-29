@@ -68,6 +68,8 @@ func (s *layerStoreStub) LockRealm(context.Context, uint32) (func(), error) {
 
 type layerServersStub struct{ servers []repo.GameServer }
 
+func (s *layerServersStub) Unregister(context.Context, string) error { return nil }
+
 func (s *layerServersStub) Register(context.Context, *repo.GameServer) error { return nil }
 func (s *layerServersStub) AvailableForMapAndRealm(context.Context, uint32, uint32, bool) ([]repo.GameServer, error) {
 	return append([]repo.GameServer(nil), s.servers...), nil

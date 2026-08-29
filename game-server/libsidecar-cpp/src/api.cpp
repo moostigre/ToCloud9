@@ -186,6 +186,13 @@ TC9_API void TC9GracefulShutdown() {
 
         spdlog::info("🧨 Starting graceful shutdown");
 
+        // Remove this process from map selection before its listeners stop.
+        if (g_state.grpc_clients && !g_state.assigned_server_id.empty()) {
+            if (g_state.grpc_clients->UnregisterGameServer(g_state.assigned_server_id)) {
+                spdlog::info("✅ Unregistered game server {}", g_state.assigned_server_id);
+            }
+        }
+
         // Stop accepting new requests
         if (g_state.grpc_manager) {
             g_state.grpc_manager->Shutdown();

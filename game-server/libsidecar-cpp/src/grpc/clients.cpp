@@ -118,6 +118,27 @@ bool GrpcClients::RegisterGameServer(
     return true;
 }
 
+bool GrpcClients::UnregisterGameServer(const std::string& server_id) {
+    if (!connected_ || !registry_stub_) {
+        spdlog::error("Registry client not connected during deregistration");
+        return false;
+    }
+
+    v1::UnregisterGameServerRequest request;
+    request.set_api(LIB_VERSION);
+    request.set_gameserverid(server_id);
+    v1::UnregisterGameServerResponse response;
+    grpc::ClientContext context;
+    context.set_deadline(Deadline());
+    grpc::Status status = registry_stub_->UnregisterGameServer(&context, request, &response);
+    if (!status.ok()) {
+        spdlog::error("UnregisterGameServer RPC failed: {} - {}",
+                      status.error_code(), status.error_message());
+        return false;
+    }
+    return true;
+}
+
 bool GrpcClients::GameServerMapsLoaded(
     const std::string& server_id,
     const std::vector<uint32_t>& maps_loaded) {

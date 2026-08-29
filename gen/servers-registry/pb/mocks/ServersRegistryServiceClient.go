@@ -424,6 +424,33 @@ func (_m *ServersRegistryServiceClient) RegisterGameServer(ctx context.Context, 
 	return r0, r1
 }
 
+// UnregisterGameServer provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) UnregisterGameServer(ctx context.Context, in *pb.UnregisterGameServerRequest, opts ...grpc.CallOption) (*pb.UnregisterGameServerResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	_ca := append([]interface{}{ctx, in}, _va...)
+	ret := _m.Called(_ca...)
+	if len(ret) == 0 {
+		panic("no return value specified for UnregisterGameServer")
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.UnregisterGameServerRequest, ...grpc.CallOption) (*pb.UnregisterGameServerResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	var r0 *pb.UnregisterGameServerResponse
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*pb.UnregisterGameServerResponse)
+	}
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.UnregisterGameServerRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
 // RegisterGateway provides a mock function with given fields: ctx, in, opts
 func (_m *ServersRegistryServiceClient) RegisterGateway(ctx context.Context, in *pb.RegisterGatewayRequest, opts ...grpc.CallOption) (*pb.RegisterGatewayResponse, error) {
 	_va := make([]interface{}, len(opts))

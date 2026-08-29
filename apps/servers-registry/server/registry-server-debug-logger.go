@@ -29,6 +29,10 @@ func (s *serversRegistryDebugLoggerMiddleware) RegisterGameServer(ctx context.Co
 	return s.realService.RegisterGameServer(ctx, request)
 }
 
+func (s *serversRegistryDebugLoggerMiddleware) UnregisterGameServer(ctx context.Context, request *pb.UnregisterGameServerRequest) (*pb.UnregisterGameServerResponse, error) {
+	return s.realService.UnregisterGameServer(ctx, request)
+}
+
 func (s *serversRegistryDebugLoggerMiddleware) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
 	return s.realService.BindGroupToGameServer(ctx, request)
 }

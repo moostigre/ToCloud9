@@ -16,6 +16,7 @@ import (
 
 type GameServer interface {
 	Register(ctx context.Context, server *repo.GameServer) error
+	Unregister(ctx context.Context, serverID string) error
 	AvailableForMapAndRealm(ctx context.Context, mapID uint32, realmID uint32, isCrossRealm bool) ([]repo.GameServer, error)
 	RandomServerForRealm(ctx context.Context, realmID uint32) (*repo.GameServer, error)
 	ListForRealm(ctx context.Context, realmID uint32) ([]repo.GameServer, error)
@@ -153,7 +154,7 @@ func NewGameServer(
 	mapBalancer mapbalancing.MapDistributor,
 	eProducer events.ServerRegistryProducer,
 	layers repo.LayerStore,
-	supportedRealmIDs []uint32,
+	_ []uint32,
 ) (GameServer, error) {
 	service := &gameServerImpl{
 		r:           r,
@@ -176,25 +177,10 @@ func NewGameServer(
 		}
 	})
 
-	for _, id := range supportedRealmIDs {
-		servers, err := r.ListByRealm(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-
-		for i := range servers {
-			if err = checker.AddHealthCheckObject(&servers[i]); err != nil {
-				return nil, err
-			}
-
-			err = metrics.AddMetricsObservable(&servers[i])
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	servers, err := r.ListOfCrossRealms(ctx)
+	// Redis is the source of truth for registered processes. Test realms use
+	// dynamically allocated IDs, so limiting restoration to configured realm IDs
+	// leaves their persisted records permanently unmonitored after a restart.
+	servers, err := r.ListAll(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -211,6 +197,14 @@ func NewGameServer(
 	}
 
 	return service, nil
+}
+
+func (g *gameServerImpl) Unregister(ctx context.Context, serverID string) error {
+	server, err := g.r.One(ctx, serverID)
+	if err != nil || server == nil {
+		return err
+	}
+	return g.removeServer(ctx, server)
 }
 
 func (g *gameServerImpl) Register(ctx context.Context, server *repo.GameServer) error {
@@ -373,10 +367,19 @@ func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
 		Str("address", server.Address).
 		Msg("Game Server unhealthy! Removing...")
 
-	err = g.r.Remove(context.Background(), server.ID)
+	if removeErr := g.removeServer(context.Background(), server); removeErr != nil {
+		log.Error().Err(removeErr).Str("serverID", server.ID).Msg("can't remove unhealthy game server")
+	}
+}
+
+func (g *gameServerImpl) removeServer(ctx context.Context, server *repo.GameServer) error {
+	if err := g.checker.RemoveHealthCheckObject(server); err != nil {
+		log.Error().Err(err).Str("serverID", server.ID).Msg("can't remove game server health check")
+	}
+
+	err := g.r.Remove(ctx, server.ID)
 	if err != nil {
-		log.Error().Err(err).Msg("can't remove server")
-		return
+		return fmt.Errorf("remove server: %w", err)
 	}
 
 	err = g.eProducer.GSRemoved(&events.ServerRegistryEventGSRemovedPayload{
@@ -396,7 +399,7 @@ func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
 
 	err = g.metrics.RemoveMetricsObservable(server)
 	if err != nil {
-		log.Error().Err(err).Msg("can't remove gameserver from metrics consumer")
+		log.Error().Err(err).Str("serverID", server.ID).Msg("can't remove game server from metrics consumer")
 	}
 
 	var wsList []repo.GameServer
@@ -408,15 +411,14 @@ func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
 	}
 
 	if err != nil {
-		log.Error().Err(err).Msg("can't list servers")
-		return
+		return fmt.Errorf("list remaining game servers: %w", err)
 	}
 
-	_, err = g.distributeMapsToServers(context.Background(), wsList)
+	_, err = g.distributeMapsToServers(ctx, wsList)
 	if err != nil {
-		log.Error().Err(err).Msg("couldn't distribute maps to servers")
-		return
+		return fmt.Errorf("redistribute maps: %w", err)
 	}
+	return nil
 }
 
 func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []repo.GameServer) ([]repo.GameServer, error) {

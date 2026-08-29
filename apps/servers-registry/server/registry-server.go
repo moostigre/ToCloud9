@@ -64,6 +64,16 @@ func (s *serversRegistryService) RegisterGameServer(ctx context.Context, request
 	}, nil
 }
 
+func (s *serversRegistryService) UnregisterGameServer(ctx context.Context, request *pb.UnregisterGameServerRequest) (*pb.UnregisterGameServerResponse, error) {
+	if request.GameServerID == "" {
+		return nil, fmt.Errorf("game server ID is required")
+	}
+	if err := s.gService.Unregister(ctx, request.GameServerID); err != nil {
+		return nil, err
+	}
+	return &pb.UnregisterGameServerResponse{Api: ver}, nil
+}
+
 func (s *serversRegistryService) AvailableGameServersForMapAndRealm(ctx context.Context, request *pb.AvailableGameServersForMapAndRealmRequest) (*pb.AvailableGameServersForMapAndRealmResponse, error) {
 	if !request.IsCrossRealm {
 		selection, err := s.lService.Select(ctx, request.RealmID, request.MapID, request.GroupID, request.PreferredGameServerAlias)

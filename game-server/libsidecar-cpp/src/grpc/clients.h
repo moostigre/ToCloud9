@@ -34,6 +34,8 @@ public:
         std::string& out_server_id,
         std::vector<uint32_t>& out_assigned_maps);
 
+    bool UnregisterGameServer(const std::string& server_id);
+
     bool GameServerMapsLoaded(
         const std::string& server_id,
         const std::vector<uint32_t>& maps_loaded);

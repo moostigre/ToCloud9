@@ -5,6 +5,7 @@ option go_package = "gen/servers-registry/pb";
 
 service ServersRegistryService {
   rpc RegisterGameServer(RegisterGameServerRequest) returns (RegisterGameServerResponse);
+  rpc UnregisterGameServer(UnregisterGameServerRequest) returns (UnregisterGameServerResponse);
   rpc AvailableGameServersForMapAndRealm(AvailableGameServersForMapAndRealmRequest) returns (AvailableGameServersForMapAndRealmResponse);
   rpc RandomGameServerForRealm(RandomGameServerForRealmRequest) returns (RandomGameServerForRealmResponse);
   rpc ListGameServersForRealm(ListGameServersForRealmRequest) returns (ListGameServersResponse);
@@ -41,6 +42,15 @@ message RegisterGameServerResponse{
   string id = 2;
   repeated uint32 assignedMaps = 3;
   string alias = 4;
+}
+
+message UnregisterGameServerRequest {
+  string api = 1;
+  string gameServerID = 2;
+}
+
+message UnregisterGameServerResponse {
+  string api = 1;
 }
 
 //
