@@ -137,6 +137,8 @@ COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so* /usr/lib/
 
 COPY --from=build-core /repo/bin/etc/worldserver.conf.dist /repo/bin/etc/worldserver.conf
 COPY --from=build-core /repo/bin/etc/modules /repo/bin/etc/modules
+RUN cp /repo/bin/etc/modules/mod_tc9_corpse_layering_transfer.conf.dist \
+    /repo/bin/etc/modules/mod_tc9_corpse_layering_transfer.conf
 COPY --from=build-core /repo/bin/bin/worldserver /repo/bin/worldserver
 
 WORKDIR /repo/bin
