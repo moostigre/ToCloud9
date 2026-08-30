@@ -127,6 +127,21 @@ func TestTimeSyncRestoresCorpseSnapshotsOnlyOnWorldEntry(t *testing.T) {
 	require.NoError(t, s.InterceptSMsgTimeSyncReq(context.Background(), timeSync))
 }
 
+func TestCrashRecoveryStartsNewWorldEntry(t *testing.T) {
+	oldSocket := socketMocks.NewSocket(t)
+	recoveredSocket := socketMocks.NewSocket(t)
+	s := &GameSession{
+		character:         &LoggedInCharacter{GUID: 42, Map: 1},
+		worldSocket:       oldSocket,
+		worldEntryPending: false,
+	}
+
+	s.installRecoveredWorldSocket(recoveredSocket)
+
+	assert.Same(t, recoveredSocket, s.worldSocket)
+	assert.True(t, s.worldEntryPending)
+}
+
 func TestPrepareForLayerRedirectCarriesOnlyCurrentMapSnapshotIDs(t *testing.T) {
 	now := uint64(time.Now().Unix())
 	s := &GameSession{
