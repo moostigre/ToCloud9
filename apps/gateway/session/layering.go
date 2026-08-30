@@ -11,11 +11,6 @@ import (
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
-const (
-	tc9RedirectProtocolV2     uint8 = 2
-	tc9RedirectOptionSeamless uint8 = 1 << 0
-)
-
 func (s *GameSession) selectLayerGameServer(ctx context.Context, groupID uint32, preferredAlias string) (*pbServ.Server, error) {
 	if s.character == nil {
 		return nil, nil
@@ -73,17 +68,20 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 	prepareRedirect := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
 	if s.seamlessLayerSwitch {
 		prepareRedirect = packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 2).
-			Uint8(tc9RedirectProtocolV2).
-			Uint8(tc9RedirectOptionSeamless)
+			Uint8(packet.TC9RedirectVersionedRequest).
+			Uint8(packet.TC9RedirectOptionSeamless)
 	}
 	oldSocket.Send(prepareRedirect)
 	var onSourcePacket func(*packet.Packet)
 	if s.seamlessLayerSwitch {
 		onSourcePacket = s.forwardLayerTransitionPacket
 	}
-	if err := waitForWorldServerRedirect(ctx, oldSocket, onSourcePacket); err != nil {
+	acceptedOptions, err := waitForWorldServerRedirect(ctx, oldSocket, onSourcePacket)
+	if err != nil {
 		return fmt.Errorf("prepare layer redirect for account %d: %w", s.accountID, err)
 	}
+	seamlessRedirect := s.seamlessLayerSwitch &&
+		acceptedOptions&packet.TC9RedirectOptionSeamless != 0
 
 	oldSocket.Close()
 	s.worldSocket = nil
@@ -94,7 +92,7 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 		return fmt.Errorf("connect to layer gameserver %s: %w", address, err)
 	}
 
-	if !s.seamlessLayerSwitch {
+	if !seamlessRedirect {
 		newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
 		newWorld.Uint32(s.character.Map)
 		newWorld.Float32(s.character.PositionX)
@@ -135,23 +133,41 @@ func (s *GameSession) forwardLayerTransitionPacket(p *packet.Packet) {
 	s.gameSocket.WriteChannel() <- p
 }
 
-func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket, onPacket func(*packet.Packet)) error {
+func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket, onPacket func(*packet.Packet)) (uint8, error) {
 	confirmationContext, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	for {
 		select {
 		case <-confirmationContext.Done():
-			return confirmationContext.Err()
+			return 0, confirmationContext.Err()
 		case response, open := <-socket.ReadChannel():
 			if !open {
-				return nil
+				return 0, nil
 			}
 			if response.Opcode == packet.TC9SMsgReadyForRedirect {
-				if response.Reader().Uint8() != 0 {
-					return fmt.Errorf("worldserver rejected redirect")
+				reader := response.Reader()
+				status := reader.Uint8()
+				if reader.Error() != nil {
+					return 0, fmt.Errorf("worldserver returned malformed redirect acknowledgement")
 				}
-				return nil
+				if status != 0 {
+					return 0, fmt.Errorf("worldserver rejected redirect")
+				}
+
+				// A one-byte success is the legacy acknowledgement. The redirect is
+				// still valid, but the gateway must use SMSG_NEW_WORLD because the
+				// source core did not explicitly accept the seamless option.
+				if reader.Left() == 0 {
+					return 0, nil
+				}
+
+				version := reader.Uint8()
+				acceptedOptions := reader.Uint8()
+				if reader.Error() != nil || reader.Left() != 0 || version != packet.TC9RedirectVersionedRequest {
+					return 0, nil
+				}
+				return acceptedOptions & packet.TC9RedirectSupportedOptions, nil
 			}
 			if onPacket != nil {
 				onPacket(response)
