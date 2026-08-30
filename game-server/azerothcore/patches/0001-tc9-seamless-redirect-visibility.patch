@@ -1,0 +1,73 @@
+diff --git a/src/server/game/Server/WorldSession.cpp b/src/server/game/Server/WorldSession.cpp
+index 3982998d1e..adb391e235 100644
+--- a/src/server/game/Server/WorldSession.cpp
++++ b/src/server/game/Server/WorldSession.cpp
+@@ -1596,7 +1596,7 @@ void WorldSession::InitializeSessionCallback(CharacterDatabaseQueryHolder const&
+     }
+ }
+ 
+-void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
++void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& recvData)
+ {
+     if (!sToCloud9Sidecar->ClusterModeEnabled())
+         return;
+@@ -1610,12 +1610,50 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
+         return;
+     }
+ 
++    constexpr uint8 TC9_REDIRECT_PROTOCOL_V2 = 2;
++    constexpr uint8 TC9_REDIRECT_OPTION_SEAMLESS = 1 << 0;
++
++    bool seamlessRedirect = false;
++    try
++    {
++        if (recvData.rpos() < recvData.size())
++        {
++            uint8 version = 0;
++            uint8 options = 0;
++            recvData >> version >> options;
++            if (version != TC9_REDIRECT_PROTOCOL_V2 || recvData.rpos() != recvData.size() ||
++                (options & static_cast<uint8>(~TC9_REDIRECT_OPTION_SEAMLESS)) != 0)
++            {
++                WorldPacket data(TC9_SMSG_READY_FOR_REDIRECT, 1);
++                data << uint8(1);
++                SendPacket(&data);
++                return;
++            }
++            seamlessRedirect = (options & TC9_REDIRECT_OPTION_SEAMLESS) != 0;
++        }
++    }
++    catch (ByteBufferException const&)
++    {
++        WorldPacket data(TC9_SMSG_READY_FOR_REDIRECT, 1);
++        data << uint8(1);
++        SendPacket(&data);
++        return;
++    }
++
++    uint32 const originalPhaseMask = player->GetPhaseMask();
++    if (seamlessRedirect)
++        player->SetPhaseMask(0, true);
++
+     LOG_DEBUG("network", "Starting saving, AccountId = {}", GetAccountId());
+ 
+     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+     player->SaveToDB(trans, false, true);
+-    AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete([this](bool success)
++    AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete([this, seamlessRedirect, originalPhaseMask](bool success)
+     {
++        Player* player = GetPlayer();
++        if (!success && seamlessRedirect && player)
++            player->SetPhaseMask(originalPhaseMask, true);
++
+         WorldPacket data(TC9_SMSG_READY_FOR_REDIRECT, 1);
+         data << uint8(!success); // 0 - Success, 1 - Failed.
+         SendPacket(&data);
+@@ -1628,7 +1666,6 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
+ 
+         LOG_DEBUG("network", "Saved, AccountId = {}", GetAccountId());
+ 
+-        Player* player = GetPlayer();
+         if (!player)
+             return;
+ 

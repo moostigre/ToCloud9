@@ -92,12 +92,17 @@ gateway:
   seamlessLayerSwitchPOC: true
 ```
 
-For the current manual phase PoC, record the character's phase with `.gps`, run
-`.modify phase 0`, and then run `.tc9 ws switch <alias-or-address>`. The source
-core's native visibility packets are forwarded unchanged, and the gateway does
-not send `SMSG_NEW_WORLD`. Restore the original phase if the redirect is
-aborted. The flag only changes explicit `.tc9 ws switch` commands; automatic
-group layer moves retain the normal transition. Do not enable this experiment
+Run `.tc9 ws switch <alias-or-address>` directly. The gateway requests the
+versioned TC9 seamless redirect option from the source core. The bundled
+AzerothCore patch temporarily phases the player out, causing native visibility
+updates to remove the source layer's objects before the handoff. It restores
+the original phase if saving fails. These packets are forwarded unchanged and
+the gateway does not send `SMSG_NEW_WORLD`; the destination login stream phases
+the new layer back in.
+
+The flag only changes explicit `.tc9 ws switch` commands. Automatic group layer
+moves and older worldservers retain the normal transition. The gateway and
+worldserver changes must be deployed together. Do not enable this experiment
 on a production gateway.
 
 ## Adjusting layers at runtime (gRPC)

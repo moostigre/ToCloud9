@@ -23,7 +23,7 @@ func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *te
 	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(0).ToPacket()
 	sourceSocket := socketMocks.NewSocket(t)
 	sourceSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
-		return writer.Opcode == packet.TC9CMsgPrepareForRedirect
+		return writer.Opcode == packet.TC9CMsgPrepareForRedirect && writer.Payload.Len() == 0
 	})).Return()
 	sourceSocket.On("ReadChannel").Return((<-chan *packet.Packet)(sourceRead))
 	sourceSocket.On("Close").Return()
@@ -125,7 +125,8 @@ func TestLayerPlayerRedirectPOCForwardsSourceVisibilityAndKeepsWorldLoaded(t *te
 	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(0).ToPacket()
 	sourceSocket := socketMocks.NewSocket(t)
 	sourceSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
-		return writer.Opcode == packet.TC9CMsgPrepareForRedirect
+		return writer.Opcode == packet.TC9CMsgPrepareForRedirect &&
+			assert.Equal(t, []byte{tc9RedirectProtocolV2, tc9RedirectOptionSeamless}, writer.Payload.Bytes())
 	})).Return()
 	sourceSocket.On("ReadChannel").Return((<-chan *packet.Packet)(sourceRead))
 	sourceSocket.On("Close").Return()
