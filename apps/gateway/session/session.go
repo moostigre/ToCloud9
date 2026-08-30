@@ -99,6 +99,7 @@ type GameSession struct {
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
+	seamlessLayerSwitchPOC           bool
 	currentGameServerID              string
 	currentGameServerAlias           string
 	currentGroupID                   uint32
@@ -121,6 +122,7 @@ type GameSessionParams struct {
 	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
+	SeamlessLayerSwitchPOC           bool
 }
 
 func NewGameSession(
@@ -156,6 +158,7 @@ func NewGameSession(
 		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
+		seamlessLayerSwitchPOC:           params.SeamlessLayerSwitchPOC,
 
 		sessionSafeFuChan:        make(chan func(*GameSession), 100),
 		packetProcessTimeout:     packetProcessTimeout,

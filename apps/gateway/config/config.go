@@ -61,6 +61,10 @@ type Config struct {
 
 	// ShowGameserverConnChangeToClient when enabled sends chat system message to the player with information about connection change.
 	ShowGameserverConnChangeToClient bool `yaml:"showGameserverConnChangeToClient" env:"SHOW_GAMESERVER_CONN_CHANGE_TO_CLIENT" env-default:"true"`
+
+	// SeamlessLayerSwitchPOC enables the experimental same-map layer handoff that
+	// keeps the current client world loaded instead of sending SMSG_NEW_WORLD.
+	SeamlessLayerSwitchPOC bool `yaml:"seamlessLayerSwitchPOC" env:"SEAMLESS_LAYER_SWITCH_POC" env-default:"false"`
 }
 
 func (c Config) PortInt() (p int) {

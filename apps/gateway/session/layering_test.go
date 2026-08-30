@@ -80,7 +80,7 @@ func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *te
 		return destinationSocket, nil
 	}
 
-	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k"))
+	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k", false))
 	require.Same(t, destinationSocket, session.worldSocket)
 	require.True(t, session.worldEntryPending)
 	require.NotNil(t, newWorldPacket)
@@ -110,7 +110,62 @@ func TestLayerPlayerRedirectKeepsSourceSocketWhenPreparationFails(t *testing.T) 
 		accountID:   7,
 	}
 
-	err := session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k")
+	err := session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k", false)
 	require.Error(t, err)
 	assert.Same(t, sourceSocket, session.worldSocket)
+}
+
+func TestLayerPlayerRedirectPOCForwardsSourceVisibilityAndKeepsWorldLoaded(t *testing.T) {
+	previousWorldSocketCreator := WorldSocketCreator
+	t.Cleanup(func() { WorldSocketCreator = previousWorldSocketCreator })
+
+	visibilityPacket := packet.NewWriter(packet.SMsgUpdateObject).Uint32(0).ToPacket()
+	sourceRead := make(chan *packet.Packet, 2)
+	sourceRead <- visibilityPacket
+	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(0).ToPacket()
+	sourceSocket := socketMocks.NewSocket(t)
+	sourceSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
+		return writer.Opcode == packet.TC9CMsgPrepareForRedirect
+	})).Return()
+	sourceSocket.On("ReadChannel").Return((<-chan *packet.Packet)(sourceRead))
+	sourceSocket.On("Close").Return()
+
+	firstLoginPacket := packet.NewWriter(packet.SMsgLoginVerifyWorld).
+		Uint32(1).Float32(10.5).Float32(20.25).Float32(30.75).Float32(1.5).ToPacket()
+	destinationRead := make(chan *packet.Packet, 2)
+	destinationRead <- packet.NewWriter(packet.SMsgAuthChallenge).ToPacket()
+	destinationRead <- firstLoginPacket
+	destinationSocket := socketMocks.NewSocket(t)
+	destinationSocket.On("ListenAndProcess", mock.Anything).Return(nil)
+	destinationSocket.On("SendPacket", mock.Anything).Return()
+	destinationSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
+		return writer.Opcode == packet.CMsgPlayerLogin
+	})).Return()
+	destinationSocket.On("ReadChannel").Return((<-chan *packet.Packet)(destinationRead))
+
+	gameWrite := make(chan *packet.Packet, 2)
+	gameSocket := socketMocks.NewSocket(t)
+	gameSocket.On("WriteChannel").Return((chan<- *packet.Packet)(gameWrite))
+
+	session := NewGameSession(
+		context.Background(),
+		&log.Logger,
+		gameSocket,
+		7,
+		packet.NewWriter(packet.CMsgAuthSession).ToPacket(),
+		GameSessionParams{},
+	)
+	session.character = &LoggedInCharacter{GUID: 42, Map: 1}
+	session.worldSocket = sourceSocket
+
+	WorldSocketCreator = func(*zerolog.Logger, string) (sockets.Socket, error) {
+		return destinationSocket, nil
+	}
+
+	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k", true))
+	require.Same(t, destinationSocket, session.worldSocket)
+	require.True(t, session.worldEntryPending)
+	assert.Same(t, visibilityPacket, <-gameWrite, "source visibility teardown must reach the client first")
+	assert.Same(t, firstLoginPacket, <-gameWrite, "destination login stream must follow without SMSG_NEW_WORLD")
+	assert.Empty(t, gameWrite)
 }
