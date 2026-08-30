@@ -179,7 +179,7 @@ func main() {
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
-			SeamlessLayerSwitchPOC:           conf.SeamlessLayerSwitchPOC,
+			SeamlessLayerSwitch:              conf.SeamlessLayerSwitch,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

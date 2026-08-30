@@ -40,13 +40,13 @@ func (s *GameSession) applyGroupLayer(ctx context.Context, groupID uint32) error
 		return nil
 	}
 	s.SendSysMessage(fmt.Sprintf("Switching to %s.", server.Alias))
-	if err := s.redirectToSelectedLayer(ctx, server, false); err != nil {
+	if err := s.redirectToSelectedLayer(ctx, server); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbServ.Server, seamlessPOC bool) error {
+func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbServ.Server) error {
 	if server == nil || s.character == nil {
 		return nil
 	}
@@ -55,7 +55,7 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	if err != nil {
 		return fmt.Errorf("connect to layer gameserver gRPC: %w", err)
 	}
-	if err := s.layerPlayerRedirect(ctx, s.character.GUID, server.Address, server.Alias, seamlessPOC); err != nil {
+	if err := s.layerPlayerRedirect(ctx, s.character.GUID, server.Address, server.Alias); err != nil {
 		return err
 	}
 	s.gameServerGRPCClient = client
@@ -64,21 +64,21 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	return nil
 }
 
-func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uint64, address, layerAlias string, seamlessPOC bool) error {
+func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uint64, address, layerAlias string) error {
 	if s.worldSocket == nil || s.character == nil {
 		return nil
 	}
 
 	oldSocket := s.worldSocket
 	prepareRedirect := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
-	if seamlessPOC {
+	if s.seamlessLayerSwitch {
 		prepareRedirect = packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 2).
 			Uint8(tc9RedirectProtocolV2).
 			Uint8(tc9RedirectOptionSeamless)
 	}
 	oldSocket.Send(prepareRedirect)
 	var onSourcePacket func(*packet.Packet)
-	if seamlessPOC {
+	if s.seamlessLayerSwitch {
 		onSourcePacket = s.forwardLayerTransitionPacket
 	}
 	if err := waitForWorldServerRedirect(ctx, oldSocket, onSourcePacket); err != nil {
@@ -94,7 +94,7 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 		return fmt.Errorf("connect to layer gameserver %s: %w", address, err)
 	}
 
-	if !seamlessPOC {
+	if !s.seamlessLayerSwitch {
 		newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
 		newWorld.Uint32(s.character.Map)
 		newWorld.Float32(s.character.PositionX)

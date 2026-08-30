@@ -296,7 +296,7 @@ func (s *GameSession) handleCommandMsgSwitchGameServer(ctx context.Context, args
 		return nil
 	}
 	s.SendSysMessage(fmt.Sprintf("Switching to %s.", label))
-	if err := s.redirectToSelectedLayer(ctx, server, s.seamlessLayerSwitchPOC); err != nil {
+	if err := s.redirectToSelectedLayer(ctx, server); err != nil {
 		return err
 	}
 	return nil

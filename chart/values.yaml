@@ -155,8 +155,8 @@ matchmakingserver:
 
 gateway:
   replicaCount: 3
-  # Experimental same-map handoff without SMSG_NEW_WORLD.
-  seamlessLayerSwitchPOC: false
+  # Native visibility transition for same-map layer handoffs.
+  seamlessLayerSwitch: false
   # IP or domain to access this gateway.
   # If empty - uses node IP.
   hostname: ""

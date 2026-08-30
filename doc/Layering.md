@@ -73,37 +73,38 @@ With a character online:
 - `.tc9 ws switch <alias-or-address>` moves your character to another layer of
   the current map (handy when testing group visibility or capacity).
 
-### Experimental seamless handoff PoC
+### Seamless layer handoff
 
-The gateway can experimentally keep the current map loaded during a same-map
-layer switch. This is disabled by default and is intended only for controlled
-client-behaviour testing.
+The gateway can keep the current map loaded during a same-map layer switch and
+use the core's native object visibility updates to transition between layers.
+This is disabled by default.
 
 Enable it with:
 
 ```text
-SEAMLESS_LAYER_SWITCH_POC=true
+SEAMLESS_LAYER_SWITCH=true
 ```
 
 Or in the Helm values:
 
 ```yaml
 gateway:
-  seamlessLayerSwitchPOC: true
+  seamlessLayerSwitch: true
 ```
 
-Run `.tc9 ws switch <alias-or-address>` directly. The gateway requests the
-versioned TC9 seamless redirect option from the source core. The bundled
-AzerothCore patch temporarily phases the player out, causing native visibility
-updates to remove the source layer's objects before the handoff. It restores
-the original phase if saving fails. These packets are forwarded unchanged and
-the gateway does not send `SMSG_NEW_WORLD`; the destination login stream phases
-the new layer back in.
+When enabled, every same-map layer redirect uses the seamless path, including
+explicit `.tc9 ws switch` commands and automatic moves caused by group creation
+or joining a group. The gateway requests the versioned TC9 seamless redirect
+option from the source core. A compatible core temporarily phases the player
+out, causing native visibility updates to remove the source layer's objects
+before the handoff, and restores the original phase if saving fails. The
+gateway forwards those packets unchanged and does not send `SMSG_NEW_WORLD`;
+the destination login stream makes the new layer visible.
 
-The flag only changes explicit `.tc9 ws switch` commands. Automatic group layer
-moves and older worldservers retain the normal transition. The gateway and
-worldserver changes must be deployed together. Do not enable this experiment
-on a production gateway.
+The gateway neither parses nor stores visible-world state. The gateway and a
+core that supports the versioned seamless redirect option must be deployed
+together. Older cores continue to support redirects while this setting is
+disabled.
 
 ## Adjusting layers at runtime (gRPC)
 
