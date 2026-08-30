@@ -102,6 +102,11 @@ type GameSession struct {
 	currentGameServerID              string
 	currentGameServerAlias           string
 	currentGroupID                   uint32
+
+	// corpseSnapshots contains opaque, short-lived loot state received from
+	// the authoritative worldserver. It exists only for the logged-in session
+	// and is replayed after same-map redirects or crash recovery.
+	corpseSnapshots map[uint64]corpseSnapshot
 }
 
 type GameSessionParams struct {
@@ -660,6 +665,7 @@ func (s *GameSession) onLoggedOut() {
 	s.currentGroupID = 0
 	s.currentGameServerID = ""
 	s.currentGameServerAlias = ""
+	s.clearCorpseSnapshots()
 
 	s.character = nil
 }
