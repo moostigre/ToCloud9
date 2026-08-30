@@ -1,6 +1,6 @@
-From 2710f04928418ff546180348680e1c89d4c02968 Mon Sep 17 00:00:00 2001
+From bbc18b8499c568a8b8df115f047801ecff4ab68a Mon Sep 17 00:00:00 2001
 From: Moostigre <moostigre@proton.me>
-Date: Sun, 30 Aug 2026 17:38:26 +0200
+Date: Sun, 30 Aug 2026 19:09:11 +0200
 Subject: [PATCH] feat(Core/TC9): preserve loot across layer transfers
 
 ---
@@ -8,6 +8,7 @@ Subject: [PATCH] feat(Core/TC9): preserve loot across layer transfers
  src/server/game/Entities/Creature/Creature.h  |  28 +
  src/server/game/Entities/Object/Object.cpp    |   3 +
  src/server/game/Entities/Player/Player.cpp    |  16 +-
+ .../game/Entities/Player/PlayerStorage.cpp    |   6 +-
  src/server/game/Entities/Unit/Unit.cpp        |   4 +
  src/server/game/Groups/Group.cpp              |  82 +-
  src/server/game/Groups/Group.h                |   4 +
@@ -18,9 +19,9 @@ Subject: [PATCH] feat(Core/TC9): preserve loot across layer transfers
  src/server/game/Server/Protocol/Opcodes.h     |   4 +-
  src/server/game/Server/WorldSession.cpp       |  52 +-
  src/server/game/Server/WorldSession.h         |   1 +
- .../game/TC9Sidecar/TC9CorpseTransfer.cpp     | 794 ++++++++++++++++++
+ .../game/TC9Sidecar/TC9CorpseTransfer.cpp     | 798 ++++++++++++++++++
  .../game/TC9Sidecar/TC9CorpseTransfer.h       |  58 ++
- 16 files changed, 1169 insertions(+), 27 deletions(-)
+ 17 files changed, 1178 insertions(+), 28 deletions(-)
  create mode 100644 src/server/game/TC9Sidecar/TC9CorpseTransfer.cpp
  create mode 100644 src/server/game/TC9Sidecar/TC9CorpseTransfer.h
 
@@ -227,6 +228,23 @@ index 9b2cb38c39..b7efbdd548 100644
                              break;
                          default:
                              break;
+diff --git a/src/server/game/Entities/Player/PlayerStorage.cpp b/src/server/game/Entities/Player/PlayerStorage.cpp
+index 1d64ced157..4566dcd3c2 100644
+--- a/src/server/game/Entities/Player/PlayerStorage.cpp
++++ b/src/server/game/Entities/Player/PlayerStorage.cpp
+@@ -5712,7 +5712,11 @@ bool Player::LoadFromDB(ObjectGuid playerGuid, CharacterDatabaseQueryHolder cons
+ 
+ bool Player::isAllowedToLoot(Creature const* creature)
+ {
+-    if (!creature->isDead() || !creature->IsDamageEnoughForLootingAndReward() || creature->IsLootRewardDisabled())
++    // A recovered TC9 corpse is reconstructed from a validated snapshot and
++    // has no combat history on this core. Its source corpse already passed the
++    // damage/reward checks before it was transferred.
++    if (!creature->isDead() || (!creature->IsTC9RecoveredCorpse() &&
++        (!creature->IsDamageEnoughForLootingAndReward() || creature->IsLootRewardDisabled())))
+         return false;
+ 
+     if (HasPendingBind())
 diff --git a/src/server/game/Entities/Unit/Unit.cpp b/src/server/game/Entities/Unit/Unit.cpp
 index f0dfa9f536..2bb7d68539 100644
 --- a/src/server/game/Entities/Unit/Unit.cpp
@@ -828,10 +846,10 @@ index 0abedb40cd..0f32cb8bcf 100644
      void HandlePlayedTime(WorldPackets::Character::PlayedTimeClient& packet);
 diff --git a/src/server/game/TC9Sidecar/TC9CorpseTransfer.cpp b/src/server/game/TC9Sidecar/TC9CorpseTransfer.cpp
 new file mode 100644
-index 0000000000..9a43a063a7
+index 0000000000..e0c6763b35
 --- /dev/null
 +++ b/src/server/game/TC9Sidecar/TC9CorpseTransfer.cpp
-@@ -0,0 +1,794 @@
+@@ -0,0 +1,798 @@
 +/*
 + * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
 + */
@@ -1118,7 +1136,8 @@ index 0000000000..9a43a063a7
 +void TC9CorpseTransfer::TrackAndPublish(Creature* creature)
 +{
 +    if (!sToCloud9Sidecar->ClusterModeEnabled() || !creature || !creature->IsInWorld() || creature->IsAlive() ||
-+        creature->loot.isLooted())
++        creature->loot.isLooted() || !creature->IsDamageEnoughForLootingAndReward() ||
++        creature->IsLootRewardDisabled())
 +        return;
 +
 +    std::lock_guard<std::recursive_mutex> lock(_mutex);
@@ -1151,11 +1170,14 @@ index 0000000000..9a43a063a7
 +    tracked.expiresAt = uint64(creature->GetCorpseRemoveTime());
 +    tracked.viewers.insert(carrier);
 +
++    // Preserve the private corpse for the complete group roster captured at
++    // death. Members can be hosted by another core already, so GetFirstMember
++    // alone would omit them and make the recovered corpse invisible when the
++    // carrier joins their layer. Per-item eligibility is still evaluated
++    // separately below and is not broadened by visibility.
 +    if (Group* group = creature->GetLootRecipientGroup())
-+        for (GroupReference* itr = group->GetFirstMember(); itr; itr = itr->next())
-+            if (Player* member = itr->GetSource())
-+                if (member->IsInMap(creature) && member->IsAtLootRewardDistance(creature))
-+                    tracked.viewers.insert(member->GetGUID());
++        for (Group::MemberSlot const& member : group->GetMemberSlots())
++            tracked.viewers.insert(member.guid);
 +
 +    for (ObjectGuid const& guid : creature->GetAllowedLooters())
 +        tracked.viewers.insert(guid);
@@ -1692,3 +1714,4 @@ index 0000000000..760af5dc78
 +#endif
 -- 
 2.47.3
+
