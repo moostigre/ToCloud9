@@ -11,6 +11,11 @@ import (
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
+const (
+	tc9RedirectProtocolV2     uint8 = 2
+	tc9RedirectOptionSeamless uint8 = 1 << 0
+)
+
 func (s *GameSession) selectLayerGameServer(ctx context.Context, groupID uint32, preferredAlias string) (*pbServ.Server, error) {
 	if s.character == nil {
 		return nil, nil
@@ -65,7 +70,13 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 	}
 
 	oldSocket := s.worldSocket
-	oldSocket.Send(packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0))
+	prepareRedirect := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
+	if seamlessPOC {
+		prepareRedirect = packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 2).
+			Uint8(tc9RedirectProtocolV2).
+			Uint8(tc9RedirectOptionSeamless)
+	}
+	oldSocket.Send(prepareRedirect)
 	var onSourcePacket func(*packet.Packet)
 	if seamlessPOC {
 		onSourcePacket = s.forwardLayerTransitionPacket
