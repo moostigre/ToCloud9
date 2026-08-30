@@ -13,6 +13,8 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	socketMocks "github.com/walkline/ToCloud9/apps/gateway/sockets/socketmock"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
+	regMocks "github.com/walkline/ToCloud9/gen/servers-registry/pb/mocks"
 )
 
 func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *testing.T) {
@@ -80,7 +82,7 @@ func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *te
 		return destinationSocket, nil
 	}
 
-	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k", false))
+	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k"))
 	require.Same(t, destinationSocket, session.worldSocket)
 	require.True(t, session.worldEntryPending)
 	require.NotNil(t, newWorldPacket)
@@ -110,12 +112,12 @@ func TestLayerPlayerRedirectKeepsSourceSocketWhenPreparationFails(t *testing.T) 
 		accountID:   7,
 	}
 
-	err := session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k", false)
+	err := session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k")
 	require.Error(t, err)
 	assert.Same(t, sourceSocket, session.worldSocket)
 }
 
-func TestLayerPlayerRedirectPOCForwardsSourceVisibilityAndKeepsWorldLoaded(t *testing.T) {
+func TestLayerPlayerRedirectSeamlessForwardsSourceVisibilityAndKeepsWorldLoaded(t *testing.T) {
 	previousWorldSocketCreator := WorldSocketCreator
 	t.Cleanup(func() { WorldSocketCreator = previousWorldSocketCreator })
 
@@ -158,15 +160,92 @@ func TestLayerPlayerRedirectPOCForwardsSourceVisibilityAndKeepsWorldLoaded(t *te
 	)
 	session.character = &LoggedInCharacter{GUID: 42, Map: 1}
 	session.worldSocket = sourceSocket
+	session.seamlessLayerSwitch = true
 
 	WorldSocketCreator = func(*zerolog.Logger, string) (sockets.Socket, error) {
 		return destinationSocket, nil
 	}
 
-	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k", true))
+	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-onyxia-7k"))
 	require.Same(t, destinationSocket, session.worldSocket)
 	require.True(t, session.worldEntryPending)
 	assert.Same(t, visibilityPacket, <-gameWrite, "source visibility teardown must reach the client first")
 	assert.Same(t, firstLoginPacket, <-gameWrite, "destination login stream must follow without SMSG_NEW_WORLD")
+	assert.Empty(t, gameWrite)
+}
+
+func TestApplyGroupLayerUsesSeamlessRedirect(t *testing.T) {
+	previousWorldSocketCreator := WorldSocketCreator
+	t.Cleanup(func() { WorldSocketCreator = previousWorldSocketCreator })
+
+	const groupID = uint32(77)
+	registry := &regMocks.ServersRegistryServiceClient{}
+	registry.On("AvailableGameServersForMapAndRealm", mock.Anything, mock.MatchedBy(func(req *pbServ.AvailableGameServersForMapAndRealmRequest) bool {
+		return req.MapID == 1 && req.GroupID == groupID
+	})).Return(&pbServ.AvailableGameServersForMapAndRealmResponse{
+		GameServers: []*pbServ.Server{{
+			ID:          "destination-id",
+			Address:     "destination:8085",
+			GrpcAddress: "destination:9509",
+			Alias:       "red-onyxia-7k",
+		}},
+	}, nil)
+
+	visibilityPacket := packet.NewWriter(packet.SMsgUpdateObject).Uint32(0).ToPacket()
+	sourceRead := make(chan *packet.Packet, 2)
+	sourceRead <- visibilityPacket
+	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(0).ToPacket()
+	sourceSocket := socketMocks.NewSocket(t)
+	sourceSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
+		return writer.Opcode == packet.TC9CMsgPrepareForRedirect &&
+			assert.Equal(t, []byte{tc9RedirectProtocolV2, tc9RedirectOptionSeamless}, writer.Payload.Bytes())
+	})).Return()
+	sourceSocket.On("ReadChannel").Return((<-chan *packet.Packet)(sourceRead))
+	sourceSocket.On("Close").Return()
+
+	firstLoginPacket := packet.NewWriter(packet.SMsgLoginVerifyWorld).Uint32(1).ToPacket()
+	destinationRead := make(chan *packet.Packet, 2)
+	destinationRead <- packet.NewWriter(packet.SMsgAuthChallenge).ToPacket()
+	destinationRead <- firstLoginPacket
+	destinationSocket := socketMocks.NewSocket(t)
+	destinationSocket.On("ListenAndProcess", mock.Anything).Return(nil)
+	destinationSocket.On("SendPacket", mock.Anything).Return()
+	destinationSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
+		return writer.Opcode == packet.CMsgPlayerLogin
+	})).Return()
+	destinationSocket.On("ReadChannel").Return((<-chan *packet.Packet)(destinationRead))
+
+	gameWrite := make(chan *packet.Packet, 2)
+	gameSocket := socketMocks.NewSocket(t)
+	gameSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
+		return writer.Opcode == packet.SMsgMessageChat
+	})).Return()
+	gameSocket.On("WriteChannel").Return((chan<- *packet.Packet)(gameWrite))
+
+	session := NewGameSession(
+		context.Background(),
+		&log.Logger,
+		gameSocket,
+		7,
+		packet.NewWriter(packet.CMsgAuthSession).ToPacket(),
+		GameSessionParams{
+			ServersRegistryClient: registry,
+			GameServerGRPCConnMgr: &GameGRPCConnMgrMock{},
+			SeamlessLayerSwitch:   true,
+		},
+	)
+	session.character = &LoggedInCharacter{GUID: 42, Map: 1}
+	session.worldSocket = sourceSocket
+	session.currentGameServerID = "source-id"
+
+	WorldSocketCreator = func(*zerolog.Logger, string) (sockets.Socket, error) {
+		return destinationSocket, nil
+	}
+
+	require.NoError(t, session.applyGroupLayer(context.Background(), groupID))
+	assert.Equal(t, "destination-id", session.currentGameServerID)
+	assert.Equal(t, "red-onyxia-7k", session.currentGameServerAlias)
+	assert.Same(t, visibilityPacket, <-gameWrite)
+	assert.Same(t, firstLoginPacket, <-gameWrite)
 	assert.Empty(t, gameWrite)
 }
