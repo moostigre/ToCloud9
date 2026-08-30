@@ -87,10 +87,10 @@ SEAMLESS_LAYER_SWITCH=true
 
 Docker Compose passes this setting to both components. For a standalone
 AzerothCore deployment, also set the following in `worldserver.conf` (or use
-the `AC_CLUSTER_SEAMLESS_LAYER_SWITCH=1` environment override):
+the `AC_SEAMLESS_LAYER_TRANSITION_ENABLE=1` environment override):
 
 ```ini
-Cluster.SeamlessLayerSwitch=1
+SeamlessLayerTransition.Enable=1
 ```
 
 Or in the Helm values:
@@ -112,7 +112,7 @@ the destination login stream makes the new layer visible.
 The gateway neither parses nor stores visible-world state. Seamless mode is
 used only when the source core explicitly acknowledges the option. An older
 core returns its legacy one-byte acknowledgement; a core with
-`Cluster.SeamlessLayerSwitch=0` acknowledges no options. In both cases the
+`SeamlessLayerTransition.Enable=0` acknowledges no options. In both cases the
 gateway automatically falls back to the existing `SMSG_NEW_WORLD` transition,
 so mixed-version rolling upgrades and explicit opt-out remain supported.
 

@@ -1,3 +1,6 @@
 [submodule "game-server/azerothcore/modules/mod-tc9-corpse-layering-transfer"]
 	path = game-server/azerothcore/modules/mod-tc9-corpse-layering-transfer
 	url = https://github.com/super-wow-project/mod-tc9-corpse-layering-transfer.git
+[submodule "game-server/azerothcore/modules/mod-seamless-tc9-layer-transition"]
+	path = game-server/azerothcore/modules/mod-seamless-tc9-layer-transition
+	url = https://github.com/super-wow-project/mod-seamless-tc9-layer-transition.git

@@ -67,6 +67,7 @@ RUN cd /repo && \
     done
 
 COPY game-server/azerothcore/modules/mod-tc9-corpse-layering-transfer /repo/modules/mod-tc9-corpse-layering-transfer
+COPY game-server/azerothcore/modules/mod-seamless-tc9-layer-transition /repo/modules/mod-seamless-tc9-layer-transition
 
 COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
 COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
@@ -137,8 +138,7 @@ COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so* /usr/lib/
 
 COPY --from=build-core /repo/bin/etc/worldserver.conf.dist /repo/bin/etc/worldserver.conf
 COPY --from=build-core /repo/bin/etc/modules /repo/bin/etc/modules
-RUN cp /repo/bin/etc/modules/mod_tc9_corpse_layering_transfer.conf.dist \
-    /repo/bin/etc/modules/mod_tc9_corpse_layering_transfer.conf
+RUN for config in /repo/bin/etc/modules/*.conf.dist; do cp "$config" "${config%.dist}"; done
 COPY --from=build-core /repo/bin/bin/worldserver /repo/bin/worldserver
 
 WORKDIR /repo/bin
