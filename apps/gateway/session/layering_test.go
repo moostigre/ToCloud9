@@ -17,7 +17,7 @@ import (
 	regMocks "github.com/walkline/ToCloud9/gen/servers-registry/pb/mocks"
 )
 
-func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *testing.T) {
+func TestLayerPlayerRedirectFallsBackToNewWorldWithLegacyCore(t *testing.T) {
 	previousWorldSocketCreator := WorldSocketCreator
 	t.Cleanup(func() { WorldSocketCreator = previousWorldSocketCreator })
 
@@ -25,7 +25,8 @@ func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *te
 	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(0).ToPacket()
 	sourceSocket := socketMocks.NewSocket(t)
 	sourceSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
-		return writer.Opcode == packet.TC9CMsgPrepareForRedirect && writer.Payload.Len() == 0
+		return writer.Opcode == packet.TC9CMsgPrepareForRedirect &&
+			assert.Equal(t, []byte{packet.TC9RedirectVersionedRequest, packet.TC9RedirectOptionSeamless}, writer.Payload.Bytes())
 	})).Return()
 	sourceSocket.On("ReadChannel").Return((<-chan *packet.Packet)(sourceRead))
 	sourceSocket.On("Close").Return()
@@ -66,7 +67,7 @@ func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *te
 		gameSocket,
 		7,
 		packet.NewWriter(packet.CMsgAuthSession).ToPacket(),
-		GameSessionParams{},
+		GameSessionParams{SeamlessLayerSwitch: true},
 	)
 	session.character = &LoggedInCharacter{
 		GUID:      42,
@@ -102,7 +103,9 @@ func TestLayerPlayerRedirectKeepsSourceSocketWhenPreparationFails(t *testing.T) 
 	sourceRead := make(chan *packet.Packet, 1)
 	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(1).ToPacket()
 	sourceSocket := socketMocks.NewSocket(t)
-	sourceSocket.On("Send", mock.Anything).Return()
+	sourceSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
+		return writer.Opcode == packet.TC9CMsgPrepareForRedirect && writer.Payload.Len() == 0
+	})).Return()
 	sourceSocket.On("ReadChannel").Return((<-chan *packet.Packet)(sourceRead))
 
 	session := &GameSession{
@@ -124,11 +127,15 @@ func TestLayerPlayerRedirectSeamlessForwardsSourceVisibilityAndKeepsWorldLoaded(
 	visibilityPacket := packet.NewWriter(packet.SMsgUpdateObject).Uint32(0).ToPacket()
 	sourceRead := make(chan *packet.Packet, 2)
 	sourceRead <- visibilityPacket
-	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(0).ToPacket()
+	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).
+		Uint8(0).
+		Uint8(packet.TC9RedirectVersionedRequest).
+		Uint8(packet.TC9RedirectOptionSeamless).
+		ToPacket()
 	sourceSocket := socketMocks.NewSocket(t)
 	sourceSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
 		return writer.Opcode == packet.TC9CMsgPrepareForRedirect &&
-			assert.Equal(t, []byte{tc9RedirectProtocolV2, tc9RedirectOptionSeamless}, writer.Payload.Bytes())
+			assert.Equal(t, []byte{packet.TC9RedirectVersionedRequest, packet.TC9RedirectOptionSeamless}, writer.Payload.Bytes())
 	})).Return()
 	sourceSocket.On("ReadChannel").Return((<-chan *packet.Packet)(sourceRead))
 	sourceSocket.On("Close").Return()
@@ -194,11 +201,15 @@ func TestApplyGroupLayerUsesSeamlessRedirect(t *testing.T) {
 	visibilityPacket := packet.NewWriter(packet.SMsgUpdateObject).Uint32(0).ToPacket()
 	sourceRead := make(chan *packet.Packet, 2)
 	sourceRead <- visibilityPacket
-	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(0).ToPacket()
+	sourceRead <- packet.NewWriter(packet.TC9SMsgReadyForRedirect).
+		Uint8(0).
+		Uint8(packet.TC9RedirectVersionedRequest).
+		Uint8(packet.TC9RedirectOptionSeamless).
+		ToPacket()
 	sourceSocket := socketMocks.NewSocket(t)
 	sourceSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
 		return writer.Opcode == packet.TC9CMsgPrepareForRedirect &&
-			assert.Equal(t, []byte{tc9RedirectProtocolV2, tc9RedirectOptionSeamless}, writer.Payload.Bytes())
+			assert.Equal(t, []byte{packet.TC9RedirectVersionedRequest, packet.TC9RedirectOptionSeamless}, writer.Payload.Bytes())
 	})).Return()
 	sourceSocket.On("ReadChannel").Return((<-chan *packet.Packet)(sourceRead))
 	sourceSocket.On("Close").Return()
@@ -248,4 +259,67 @@ func TestApplyGroupLayerUsesSeamlessRedirect(t *testing.T) {
 	assert.Same(t, visibilityPacket, <-gameWrite)
 	assert.Same(t, firstLoginPacket, <-gameWrite)
 	assert.Empty(t, gameWrite)
+}
+
+func TestWaitForWorldServerRedirectNegotiatesOptionsAndFallsBack(t *testing.T) {
+	tests := []struct {
+		name            string
+		acknowledgement *packet.Packet
+		wantOptions     uint8
+		wantError       bool
+	}{
+		{
+			name:            "legacy core",
+			acknowledgement: packet.NewWriter(packet.TC9SMsgReadyForRedirect).Uint8(0).ToPacket(),
+		},
+		{
+			name: "seamless accepted",
+			acknowledgement: packet.NewWriter(packet.TC9SMsgReadyForRedirect).
+				Uint8(0).
+				Uint8(packet.TC9RedirectVersionedRequest).
+				Uint8(packet.TC9RedirectOptionSeamless).
+				ToPacket(),
+			wantOptions: packet.TC9RedirectOptionSeamless,
+		},
+		{
+			name: "seamless disabled by core",
+			acknowledgement: packet.NewWriter(packet.TC9SMsgReadyForRedirect).
+				Uint8(0).
+				Uint8(packet.TC9RedirectVersionedRequest).
+				Uint8(0).
+				ToPacket(),
+		},
+		{
+			name: "unknown response version",
+			acknowledgement: packet.NewWriter(packet.TC9SMsgReadyForRedirect).
+				Uint8(0).
+				Uint8(packet.TC9RedirectVersionedRequest + 1).
+				Uint8(packet.TC9RedirectOptionSeamless).
+				ToPacket(),
+		},
+		{
+			name: "redirect rejected",
+			acknowledgement: packet.NewWriter(packet.TC9SMsgReadyForRedirect).
+				Uint8(1).
+				ToPacket(),
+			wantError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			read := make(chan *packet.Packet, 1)
+			read <- test.acknowledgement
+			socket := socketMocks.NewSocket(t)
+			socket.On("ReadChannel").Return((<-chan *packet.Packet)(read))
+
+			options, err := waitForWorldServerRedirect(context.Background(), socket, nil)
+			if test.wantError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.wantOptions, options)
+		})
+	}
 }

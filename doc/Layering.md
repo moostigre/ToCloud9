@@ -77,12 +77,20 @@ With a character online:
 
 The gateway can keep the current map loaded during a same-map layer switch and
 use the core's native object visibility updates to transition between layers.
-This is disabled by default.
+This is disabled by default on both the gateway and AzerothCore.
 
 Enable it with:
 
 ```text
 SEAMLESS_LAYER_SWITCH=true
+```
+
+Docker Compose passes this setting to both components. For a standalone
+AzerothCore deployment, also set the following in `worldserver.conf` (or use
+the `AC_CLUSTER_SEAMLESS_LAYER_SWITCH=1` environment override):
+
+```ini
+Cluster.SeamlessLayerSwitch=1
 ```
 
 Or in the Helm values:
@@ -101,10 +109,17 @@ before the handoff, and restores the original phase if saving fails. The
 gateway forwards those packets unchanged and does not send `SMSG_NEW_WORLD`;
 the destination login stream makes the new layer visible.
 
-The gateway neither parses nor stores visible-world state. The gateway and a
-core that supports the versioned seamless redirect option must be deployed
-together. Older cores continue to support redirects while this setting is
-disabled.
+The gateway neither parses nor stores visible-world state. Seamless mode is
+used only when the source core explicitly acknowledges the option. An older
+core returns its legacy one-byte acknowledgement; a core with
+`Cluster.SeamlessLayerSwitch=0` acknowledges no options. In both cases the
+gateway automatically falls back to the existing `SMSG_NEW_WORLD` transition,
+so mixed-version rolling upgrades and explicit opt-out remain supported.
+
+The versioned redirect exchange extends the original empty request and
+one-byte status response. The gateway sends a version and requested option
+bits; a compatible core echoes the version and the subset it accepted. These
+are fixed wire-protocol values, not operator configuration.
 
 ## Adjusting layers at runtime (gRPC)
 
