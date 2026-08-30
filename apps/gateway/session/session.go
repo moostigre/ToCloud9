@@ -624,9 +624,7 @@ func (s *GameSession) onWorldSocketClosed() {
 
 		// we need to modify session in a safe thread (goroutine)
 		s.sessionSafeFuChan <- func(session *GameSession) {
-			if session.character != nil {
-				session.worldSocket = socket
-			}
+			session.installRecoveredWorldSocket(socket)
 
 			if session.showGameserverConnChangeToClient {
 				session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
@@ -635,6 +633,15 @@ func (s *GameSession) onWorldSocketClosed() {
 			}
 		}
 	}(s.character.GUID)
+}
+
+func (s *GameSession) installRecoveredWorldSocket(socket sockets.Socket) {
+	if s.character == nil {
+		return
+	}
+
+	s.worldSocket = socket
+	s.worldEntryPending = true
 }
 
 func (s *GameSession) onLoggedOut() {
