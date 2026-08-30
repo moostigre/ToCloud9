@@ -66,6 +66,8 @@ RUN cd /repo && \
         git apply --check "$patch" && git apply "$patch"; \
     done
 
+COPY game-server/azerothcore/modules/mod-tc9-corpse-layering-transfer /repo/modules/mod-tc9-corpse-layering-transfer
+
 COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
 COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-guild.h ./repo/deps/libsidecar/include/events-guild.h

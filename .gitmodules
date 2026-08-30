@@ -1,0 +1,3 @@
+[submodule "game-server/azerothcore/modules/mod-tc9-corpse-layering-transfer"]
+	path = game-server/azerothcore/modules/mod-tc9-corpse-layering-transfer
+	url = https://github.com/super-wow-project/mod-tc9-corpse-layering-transfer.git
