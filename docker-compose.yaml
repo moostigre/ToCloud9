@@ -75,6 +75,7 @@ services:
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
       LOG_LEVEL: 0
       PORT: 8085
+      SEAMLESS_LAYER_SWITCH_POC: ${SEAMLESS_LAYER_SWITCH_POC:-false}
       NATS_URL: nats://nats:4222
     profiles:
       - ac

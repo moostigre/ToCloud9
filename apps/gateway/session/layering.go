@@ -35,13 +35,13 @@ func (s *GameSession) applyGroupLayer(ctx context.Context, groupID uint32) error
 		return nil
 	}
 	s.SendSysMessage(fmt.Sprintf("Switching to %s.", server.Alias))
-	if err := s.redirectToSelectedLayer(ctx, server); err != nil {
+	if err := s.redirectToSelectedLayer(ctx, server, false); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbServ.Server) error {
+func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbServ.Server, seamlessPOC bool) error {
 	if server == nil || s.character == nil {
 		return nil
 	}
@@ -50,7 +50,7 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	if err != nil {
 		return fmt.Errorf("connect to layer gameserver gRPC: %w", err)
 	}
-	if err := s.layerPlayerRedirect(ctx, s.character.GUID, server.Address, server.Alias); err != nil {
+	if err := s.layerPlayerRedirect(ctx, s.character.GUID, server.Address, server.Alias, seamlessPOC); err != nil {
 		return err
 	}
 	s.gameServerGRPCClient = client
@@ -59,14 +59,18 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	return nil
 }
 
-func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uint64, address, layerAlias string) error {
+func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uint64, address, layerAlias string, seamlessPOC bool) error {
 	if s.worldSocket == nil || s.character == nil {
 		return nil
 	}
 
 	oldSocket := s.worldSocket
 	oldSocket.Send(packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0))
-	if err := waitForWorldServerRedirect(ctx, oldSocket); err != nil {
+	var onSourcePacket func(*packet.Packet)
+	if seamlessPOC {
+		onSourcePacket = s.forwardLayerTransitionPacket
+	}
+	if err := waitForWorldServerRedirect(ctx, oldSocket, onSourcePacket); err != nil {
 		return fmt.Errorf("prepare layer redirect for account %d: %w", s.accountID, err)
 	}
 
@@ -79,13 +83,15 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 		return fmt.Errorf("connect to layer gameserver %s: %w", address, err)
 	}
 
-	newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
-	newWorld.Uint32(s.character.Map)
-	newWorld.Float32(s.character.PositionX)
-	newWorld.Float32(s.character.PositionY)
-	newWorld.Float32(s.character.PositionZ)
-	newWorld.Float32(s.character.PositionO)
-	s.gameSocket.Send(newWorld)
+	if !seamlessPOC {
+		newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
+		newWorld.Uint32(s.character.Map)
+		newWorld.Float32(s.character.PositionX)
+		newWorld.Float32(s.character.PositionY)
+		newWorld.Float32(s.character.PositionZ)
+		newWorld.Float32(s.character.PositionO)
+		s.gameSocket.Send(newWorld)
+	}
 
 	firstPacket, err := waitForFirstWorldPacket(ctx, newSocket)
 	if err != nil {
@@ -106,7 +112,19 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 	return nil
 }
 
-func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket) error {
+// forwardLayerTransitionPacket keeps the client's current world stream alive
+// while the source core prepares a seamless redirect. In particular, an
+// AzerothCore phase change emits the native out-of-range updates that make the
+// old layer fade out. The gateway deliberately treats these packets as opaque:
+// it neither parses nor retains any visible-world state.
+func (s *GameSession) forwardLayerTransitionPacket(p *packet.Packet) {
+	if p == nil || s.gameSocket == nil || OpcodeBlacklist[p.Opcode] {
+		return
+	}
+	s.gameSocket.WriteChannel() <- p
+}
+
+func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket, onPacket func(*packet.Packet)) error {
 	confirmationContext, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -123,6 +141,9 @@ func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket) erro
 					return fmt.Errorf("worldserver rejected redirect")
 				}
 				return nil
+			}
+			if onPacket != nil {
+				onPacket(response)
 			}
 		}
 	}

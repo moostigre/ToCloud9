@@ -73,6 +73,33 @@ With a character online:
 - `.tc9 ws switch <alias-or-address>` moves your character to another layer of
   the current map (handy when testing group visibility or capacity).
 
+### Experimental seamless handoff PoC
+
+The gateway can experimentally keep the current map loaded during a same-map
+layer switch. This is disabled by default and is intended only for controlled
+client-behaviour testing.
+
+Enable it with:
+
+```text
+SEAMLESS_LAYER_SWITCH_POC=true
+```
+
+Or in the Helm values:
+
+```yaml
+gateway:
+  seamlessLayerSwitchPOC: true
+```
+
+For the current manual phase PoC, record the character's phase with `.gps`, run
+`.modify phase 0`, and then run `.tc9 ws switch <alias-or-address>`. The source
+core's native visibility packets are forwarded unchanged, and the gateway does
+not send `SMSG_NEW_WORLD`. Restore the original phase if the redirect is
+aborted. The flag only changes explicit `.tc9 ws switch` commands; automatic
+group layer moves retain the normal transition. Do not enable this experiment
+on a production gateway.
+
 ## Adjusting layers at runtime (gRPC)
 
 You can change how many layers a map has without restarting, through the
