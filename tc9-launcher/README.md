@@ -28,6 +28,9 @@ the new version, and restarts automatically.
   `Interface/AddOns` beneath a validated client folder.
 - Different existing managed files are moved into a timestamped
   `.swp-backup` directory before installation.
+- The newest rollback copy is retained; older managed-client backups,
+  superseded launcher executables, and stale update-cache versions are pruned
+  automatically at startup so update history cannot grow without bounds.
 - The staged archive is SHA-256 verified before the atomic rename.
 - Third-party addon ZIPs are accepted only from the configured HTTPS
   repositories. Traversal paths, links, native executables, oversized files,

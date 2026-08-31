@@ -1446,6 +1446,9 @@ func main() {
 
 	refreshButtons()
 	go func() {
+		// Keep one rollback copy while pruning launcher caches and accumulated
+		// client update backups from older releases.
+		_ = client.CleanupObsoleteVersions(current.ClientPath)
 		manifest, updateErr := client.FetchManifest()
 		if updateErr == nil {
 			runOnUI(func() { setRealmEnvironments(manifest.Realms, manifest.DefaultEnvironment) })
