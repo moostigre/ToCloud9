@@ -11,6 +11,15 @@ import (
 // the per-account addon state used by the 3.3.5 client. Installing fresh files
 // is insufficient when a previous session recorded SWP as disabled.
 func EnableManagedAddons(root string) error {
+	return EnableAddons(root, []string{"SWP"})
+}
+
+// EnableAddons updates every existing account and character AddOns.txt file so
+// newly installed addons are available on the next client launch.
+func EnableAddons(root string, addons []string) error {
+	if len(addons) == 0 {
+		return nil
+	}
 	accountRoot := filepath.Join(root, "WTF", "Account")
 	accounts, err := os.ReadDir(accountRoot)
 	if os.IsNotExist(err) {
@@ -27,8 +36,10 @@ func EnableManagedAddons(root string) error {
 		// Older 3.3.5 clients use the account-level file, while some client
 		// distributions persist the selection per realm/character. Maintain
 		// both forms and update every existing character-specific file.
-		if err = enableAddonInFile(filepath.Join(accountPath, "AddOns.txt"), "SWP"); err != nil {
-			return err
+		for _, addon := range addons {
+			if err = enableAddonInFile(filepath.Join(accountPath, "AddOns.txt"), addon); err != nil {
+				return err
+			}
 		}
 		err = filepath.WalkDir(accountPath, func(path string, entry os.DirEntry, walkErr error) error {
 			if walkErr != nil {
@@ -38,7 +49,12 @@ func EnableManagedAddons(root string) error {
 				strings.EqualFold(filepath.Dir(path), accountPath) {
 				return nil
 			}
-			return enableAddonInFile(path, "SWP")
+			for _, addon := range addons {
+				if err := enableAddonInFile(path, addon); err != nil {
+					return err
+				}
+			}
+			return nil
 		})
 		if err != nil {
 			return fmt.Errorf("update character addon settings for %s: %w", account.Name(), err)

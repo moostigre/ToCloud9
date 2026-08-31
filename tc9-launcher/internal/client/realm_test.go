@@ -45,8 +45,32 @@ func TestConfigureRealmUpdatesLocaleAndConfig(t *testing.T) {
 }
 
 func TestConfigureRealmRejectsInjectedRealmlist(t *testing.T) {
-	if validRealmlist("example.org\nSET accountName hacked") {
+	if validRealmlist("127.0.0.1\nSET x") {
 		t.Fatal("realmlist containing a second setting was accepted")
+	}
+}
+
+func TestValidRealmlistAcceptsHostnameWithPort(t *testing.T) {
+	if !validRealmlist("logon.expanded.space:32767") {
+		t.Fatal("hostname-based realmlist was rejected")
+	}
+}
+
+func TestConfigureRealmWritesHostnameWithPort(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "Data", "enUS"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := configureRealmFiles(root, "logon.expanded.space:32767", "PTR"); err != nil {
+		t.Fatal(err)
+	}
+	realmlist, err := os.ReadFile(filepath.Join(root, "Data", "enUS", "realmlist.wtf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(realmlist) != "set realmlist logon.expanded.space:32767\r\n" {
+		t.Fatalf("unexpected realmlist: %q", realmlist)
 	}
 }
 

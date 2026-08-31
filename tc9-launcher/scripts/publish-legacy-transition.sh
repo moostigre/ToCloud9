@@ -10,7 +10,7 @@ version=$1
 private_key=$2
 output_dir=$3
 repo_dir=$(cd "$(dirname "$0")/.." && pwd)
-base_url="http://163.172.51.144:3000/downloads/client/files"
+base_url="https://launcher.expanded.space/downloads/client/files"
 mkdir -p "$output_dir/files"
 
 install -m 0644 "$repo_dir/assets/patch-T.MPQ" "$output_dir/files/patch-T.MPQ"

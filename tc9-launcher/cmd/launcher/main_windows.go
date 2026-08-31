@@ -501,8 +501,8 @@ func main() {
 
 	current := loadSettings()
 	realmEnvironments := []client.RealmEnvironment{
-		{ID: "ptr", Name: "PTR", Realmlist: "163.172.51.144", RealmName: "PTR"},
-		{ID: "production", Name: "Production", Realmlist: "163.172.51.144", RealmName: "Production"},
+		{ID: "ptr", Name: "PTR", Realmlist: "logon.expanded.space:32767", RealmName: "PTR"},
+		{ID: "swp", Name: "SWP", Realmlist: "logon.expanded.space:32765", RealmName: "SWP"},
 	}
 	if current.Environment == "" {
 		current.Environment = "ptr"
@@ -612,6 +612,7 @@ func main() {
 	var validateStep, checkStep, patchStep stepUI
 	var selectButton, playButton *borderedButton
 	var launcherUpdateButton *hoverIconButton
+	var refreshAddonControls func()
 
 	refreshButtons := func() {
 		if busy {
@@ -643,6 +644,9 @@ func main() {
 			launcherUpdateButton.Disable()
 		} else {
 			launcherUpdateButton.Enable()
+		}
+		if refreshAddonControls != nil {
+			refreshAddonControls()
 		}
 	}
 	setBusy := func(value bool, message string) {
@@ -1179,6 +1183,182 @@ func main() {
 	accountsPage := framedPanel(navyGlass, container.NewPadded(accountsLayout))
 	refreshAccounts()
 
+	addonSearch := widget.NewEntry()
+	addonSearch.SetPlaceHolder("Filter 3.3.5a addons by name, description, or source")
+	addonStatus := widget.NewLabel("Loading the 3.3.5a addon catalogue…")
+	addonStatus.Wrapping = fyne.TextWrapWord
+	addonDescription := widget.NewLabel("Select an addon to see its description and install it into the selected client.")
+	addonDescription.Wrapping = fyne.TextWrapWord
+	addonProgress := widget.NewProgressBar()
+	addonProgress.Min, addonProgress.Max = 0, 1
+	addonProgress.Hide()
+	var addonCatalogue, addonResults []client.Addon
+	selectedAddon := -1
+	addonBusy := false
+	var addonTable *widget.Table
+	var addonInstallButton, addonSearchButton *widget.Button
+	refreshAddonControls = func() {
+		if addonBusy || busy {
+			addonSearch.Disable()
+			addonSearchButton.Disable()
+			addonInstallButton.Disable()
+			return
+		}
+		addonSearch.Enable()
+		addonSearchButton.Enable()
+		if selectedAddon >= 0 && selectedAddon < len(addonResults) && strings.TrimSpace(current.ClientPath) != "" {
+			addonInstallButton.Enable()
+		} else {
+			addonInstallButton.Disable()
+		}
+	}
+	applyAddonFilter := func() {
+		words := strings.Fields(strings.ToLower(strings.TrimSpace(addonSearch.Text)))
+		addonResults = addonResults[:0]
+		for _, addon := range addonCatalogue {
+			haystack := strings.ToLower(strings.Join([]string{addon.Name, addon.Version, addon.Source, addon.Description}, " "))
+			matched := true
+			for _, word := range words {
+				if !strings.Contains(haystack, word) {
+					matched = false
+					break
+				}
+			}
+			if matched {
+				addonResults = append(addonResults, addon)
+			}
+		}
+		selectedAddon = -1
+		addonTable.UnselectAll()
+		addonTable.Refresh()
+		addonDescription.SetText("Select an addon to see its description and install it into the selected client.")
+		addonStatus.SetText(fmt.Sprintf("%d compatible addon(s) shown", len(addonResults)))
+		refreshAddonControls()
+	}
+	addonTable = widget.NewTable(
+		func() (int, int) { return len(addonResults) + 1, 3 },
+		func() fyne.CanvasObject {
+			label := widget.NewLabel("")
+			label.Truncation = fyne.TextTruncateEllipsis
+			return label
+		},
+		func(id widget.TableCellID, object fyne.CanvasObject) {
+			label := object.(*widget.Label)
+			label.TextStyle.Bold = id.Row == 0
+			if id.Row == 0 {
+				label.SetText([]string{"Name", "Version", "Source"}[id.Col])
+				return
+			}
+			if id.Row-1 >= len(addonResults) {
+				label.SetText("")
+				return
+			}
+			addon := addonResults[id.Row-1]
+			label.SetText([]string{addon.Name, addon.Version, addon.Source}[id.Col])
+		},
+	)
+	addonTable.SetColumnWidth(0, 255)
+	addonTable.SetColumnWidth(1, 125)
+	addonTable.SetColumnWidth(2, 145)
+	addonTable.SetRowHeight(0, 34)
+	addonTable.OnSelected = func(id widget.TableCellID) {
+		if id.Row == 0 || id.Row-1 >= len(addonResults) {
+			addonTable.Unselect(id)
+			return
+		}
+		selectedAddon = id.Row - 1
+		addon := addonResults[selectedAddon]
+		description := strings.TrimSpace(addon.Description)
+		if description == "" {
+			description = "No description was supplied by the repository."
+		}
+		addonDescription.SetText(addon.Name + " — " + description)
+		refreshAddonControls()
+	}
+	var loadAddons func()
+	loadAddons = func() {
+		if addonBusy {
+			return
+		}
+		addonBusy = true
+		addonProgress.Hide()
+		addonStatus.SetText("Searching Maddons Manager and GitHub…")
+		refreshAddonControls()
+		query := strings.TrimSpace(addonSearch.Text)
+		go func() {
+			items, err := client.SearchAddons(query)
+			runOnUI(func() {
+				addonBusy = false
+				if err != nil {
+					addonStatus.SetText("Unable to load addon repositories: " + err.Error())
+					refreshAddonControls()
+					return
+				}
+				addonCatalogue = items
+				applyAddonFilter()
+			})
+		}()
+	}
+	addonSearchButton = widget.NewButtonWithIcon("Search repositories", theme.SearchIcon(), loadAddons)
+	addonSearch.OnChanged = func(string) {
+		if !addonBusy && addonTable != nil {
+			applyAddonFilter()
+		}
+	}
+	addonSearch.OnSubmitted = func(string) { loadAddons() }
+	addonInstallButton = widget.NewButtonWithIcon("Install selected", theme.DownloadIcon(), func() {
+		if addonBusy || selectedAddon < 0 || selectedAddon >= len(addonResults) {
+			return
+		}
+		addon := addonResults[selectedAddon]
+		if _, err := client.Validate(current.ClientPath); err != nil {
+			addonStatus.SetText("Select and validate a WoW 3.3.5a client before installing addons: " + err.Error())
+			return
+		}
+		message := fmt.Sprintf("Install %s from %s?\n\nThird-party addons contain Lua code that runs inside the game. The launcher will verify the 3.3.5a TOC and archive structure, but does not review the addon's behavior.", addon.Name, addon.Source)
+		dialog.NewConfirm("Install third-party addon", message, func(confirmed bool) {
+			if !confirmed {
+				return
+			}
+			addonBusy = true
+			addonStatus.SetText("Preparing " + addon.Name + "…")
+			setBusy(true, "Installing addon "+addon.Name+"…")
+			go func() {
+				result, err := client.InstallAddon(current.ClientPath, addon, func(progress client.UpdateProgress) {
+					runOnUI(func() {
+						addonStatus.SetText(progress.Message)
+						if progress.TotalBytes > 0 {
+							addonProgress.SetValue(float64(progress.BytesDownloaded) / float64(progress.TotalBytes))
+							addonProgress.Show()
+						}
+					})
+				})
+				runOnUI(func() {
+					addonBusy = false
+					addonProgress.Hide()
+					addonProgress.SetValue(0)
+					if err != nil {
+						addonStatus.SetText("Addon installation failed: " + err.Error())
+						setBusy(false, "Addon installation failed")
+						return
+					}
+					addonStatus.SetText("Installed " + strings.Join(result.Directories, ", ") + " (version " + result.Version + "). It will be enabled on the next game launch.")
+					setBusy(false, "Addon installed")
+				})
+			}()
+		}, w).Show()
+	})
+	addonInstallButton.Disable()
+	addonSearchRow := container.NewBorder(nil, nil, nil, addonSearchButton, blackInput(addonSearch))
+	addonHeader := container.NewVBox(
+		textLabel("ADDONS FOR WOW 3.3.5A", 12, gold, true),
+		widget.NewLabel("Browse the dedicated Maddons Manager catalogue or search maintained GitHub backports."),
+		addonSearchRow,
+		addonStatus,
+	)
+	addonFooter := container.NewVBox(addonDescription, addonProgress, container.NewHBox(addonInstallButton))
+	addonPage := framedPanel(navyGlass, container.NewPadded(container.NewBorder(addonHeader, addonFooter, nil, nil, addonTable)))
+
 	var autoUpdateChecks []*widget.Check
 	syncingConfiguration := false
 	syncConfiguration := func() {
@@ -1215,7 +1395,7 @@ func main() {
 	)))
 	syncConfiguration()
 
-	pages := []fyne.CanvasObject{newsPage, accountsPage, playPage, configurationPage}
+	pages := []fyne.CanvasObject{newsPage, accountsPage, playPage, addonPage, configurationPage}
 	pageHost := container.NewStack(pages[0])
 	var tabButtons []*hoverTabButton
 	selectTab := func(index int) {
@@ -1229,7 +1409,7 @@ func main() {
 	tabSpecs := []struct {
 		text string
 		icon []byte
-	}{{"News", swpNewsIcon}, {"Accounts", swpAccountsIcon}, {"Client", swpClientIcon}, {"Configuration", swpConfigurationIcon}}
+	}{{"News", swpNewsIcon}, {"Accounts", swpAccountsIcon}, {"Client", swpClientIcon}, {"Addons", swpAddonsIcon}, {"Configuration", swpConfigurationIcon}}
 	for index, spec := range tabSpecs {
 		tabIndex := index
 		tabButtons = append(tabButtons, newHoverTabButton(spec.text, spec.icon, func() { selectTab(tabIndex) }))
@@ -1262,6 +1442,7 @@ func main() {
 	outerFrame.StrokeWidth = 2
 	w.SetContent(container.NewStack(background, statueOverlay, coreContent, outerFrame))
 	loadNews()
+	loadAddons()
 
 	refreshButtons()
 	go func() {

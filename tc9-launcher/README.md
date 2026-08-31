@@ -5,6 +5,12 @@ validates a user-selected client, checks PTR authentication-server connectivity,
 downloads a signed content manifest, safely installs its files, and starts
 `Wow.exe`.
 
+The Addons tab browses the dedicated Maddons Manager Lich King catalogue and
+can search GitHub for maintained 3.3.5a backports. Results identify the addon
+name, advertised version or source revision, and repository. The launcher only
+installs ZIP archives containing a `## Interface: 30300` TOC beneath the
+selected client's `Interface/AddOns` directory.
+
 Launcher 0.4 and later also update themselves from launcher metadata in that
 same signed manifest. A verified replacement executable waits for the running
 launcher to exit, preserves it as a timestamped `.previous-*` backup, installs
@@ -17,11 +23,20 @@ the new version, and restarts automatically.
 - It validates the Windows version resource as 3.3.5.12340.
 - The signed manifest is verified with an Ed25519 public key embedded in the
   launcher, and every downloaded file is checked by SHA-256 and size.
-- It only writes `Data/patch-T.MPQ` and the `SWP` addon beneath a
-  validated client folder.
+- Managed SWP updates only write `Data/patch-T.MPQ` and the `SWP` addon.
+  User-confirmed third-party addon installs are restricted to
+  `Interface/AddOns` beneath a validated client folder.
 - Different existing managed files are moved into a timestamped
   `.swp-backup` directory before installation.
 - The staged archive is SHA-256 verified before the atomic rename.
+- Third-party addon ZIPs are accepted only from the configured HTTPS
+  repositories. Traversal paths, links, native executables, oversized files,
+  ZIP bombs, and addons without a 3.3.5a (`30300`) TOC are rejected. Existing
+  addon directories are backed up before replacement.
+
+Third-party addons are not covered by the signed SWP content manifest. Their
+Lua executes inside the game, so the launcher always shows the selected source
+and asks for confirmation before downloading and installing one.
 
 ## Build the launcher
 
@@ -134,10 +149,9 @@ The release pipeline is:
    Ed25519.
 5. Deploy the generated directory to the path served at
    `/downloads/swp`. Keep the previous directory as a rollback copy.
-6. When the files are served by the production Nuxt application, run
-   `npm run build` in the website repository and restart `pservsite.service`.
-   Nitro records static-file sizes and ETags at build time; skipping this step
-   can make it serve a truncated old-length response after a file grows.
+6. Publish directly into `/srv/tc9-launcher-downloads/swp`. Nginx serves this
+   allowlisted directory as static files; the disabled account-services
+   application is not part of the launcher release path.
 7. Fetch the public manifest and each changed public URL. Confirm the manifest
    version, file size, and SHA-256 all match before announcing the release.
 
@@ -155,13 +169,11 @@ Production example on the current server (replace the version every time):
 ```bash
 ./scripts/publish-content.sh 2026.08.09.18 \
   /root/.tc9-launcher-signing-key.pem \
-  /root/pservsite/public/downloads/swp.release-20260809-18
+  /srv/tc9-launcher-downloads/swp.release-20260809-18
 
 # After inspecting the generated manifest and retaining the old `swp`
-# directory as a backup, move the release into public/downloads/swp.
-cd /root/pservsite
-npm run build
-systemctl restart pservsite.service
+# directory as a backup, atomically rename the release to
+# /srv/tc9-launcher-downloads/swp. No application restart is required.
 ```
 
 Do not commit the signing key. The public key embedded in
@@ -174,11 +186,11 @@ Useful release checks:
 
 ```bash
 # Decode the signed payload for inspection (verification still happens in the launcher).
-curl -fsS http://163.172.51.144:3000/downloads/swp/manifest.json \
+curl -fsS https://launcher.expanded.space/downloads/swp/manifest.json \
   | jq -r .payload | base64 -d | jq .
 
 # Compare this result with the SHA-256 stored for the same path in the payload.
-curl -fsS http://163.172.51.144:3000/downloads/swp/files/SWPMultispecs.lua \
+curl -fsS https://launcher.expanded.space/downloads/swp/files/SWPMultispecs.lua \
   | sha256sum
 ```
 

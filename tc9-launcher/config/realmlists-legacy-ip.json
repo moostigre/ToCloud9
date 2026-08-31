@@ -4,13 +4,13 @@
     {
       "id": "ptr",
       "name": "PTR",
-      "realmlist": "logon.expanded.space:32767",
+      "realmlist": "163.172.51.144:32767",
       "realm_name": "PTR"
     },
     {
       "id": "swp",
       "name": "SWP",
-      "realmlist": "logon.expanded.space:32765",
+      "realmlist": "163.172.51.144:32765",
       "realm_name": "SWP"
     }
   ]

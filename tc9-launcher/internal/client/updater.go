@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	ManifestURL            = "http://163.172.51.144:3000/downloads/swp/manifest.json"
+	ManifestURL            = "https://launcher.expanded.space/downloads/swp/v2/manifest.json"
 	publicKeyBase64        = "c2h94zpGvd/K5YmlvYRkMaoo1y3T9V/a6tNioBICwFM="
 	maximumManagedFileSize = 100 << 20
 )
@@ -181,7 +181,7 @@ func FetchManifest() (Manifest, error) {
 
 func validRealmlist(value string) bool {
 	value = strings.TrimSpace(value)
-	return value != "" && len(value) <= 255 && len(strings.Fields(value)) == 1 && !strings.ContainsAny(value, `"\r\n`)
+	return value != "" && len(value) <= 255 && len(strings.Fields(value)) == 1 && !strings.ContainsAny(value, "\"\r\n")
 }
 
 func validateManagedPath(path string) error {

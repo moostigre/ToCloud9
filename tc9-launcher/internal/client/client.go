@@ -16,8 +16,8 @@ import (
 
 const (
 	PatchName   = "patch-T.MPQ"
-	RealmHost   = "163.172.51.144"
-	RealmPort   = "3724"
+	RealmHost   = "logon.expanded.space"
+	RealmPort   = "32767"
 	ClientBuild = 12340
 )
 

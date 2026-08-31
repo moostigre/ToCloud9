@@ -10,8 +10,8 @@ version=$1
 private_key=$2
 output_dir=$3
 repo_dir=$(cd "$(dirname "$0")/.." && pwd)
-base_url="http://163.172.51.144:3000/downloads/swp/files"
-realmlists_config="$repo_dir/config/realmlists.json"
+base_url="https://launcher.expanded.space/downloads/swp/files"
+realmlists_config=${REALMLISTS_CONFIG:-"$repo_dir/config/realmlists.json"}
 launcher_version=$(sed -n 's/.*LauncherVersion[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$repo_dir/internal/client/selfupdate.go" | head -1)
 
 jq -e '.default as $default | (.realms | length) > 0 and any(.realms[]; .id == $default) and all(.realms[]; (.id | length) > 0 and (.name | length) > 0 and (.realmlist | length) > 0 and (.realm_name | length) > 0)' "$realmlists_config" >/dev/null

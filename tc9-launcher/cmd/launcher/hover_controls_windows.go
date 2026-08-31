@@ -31,6 +31,9 @@ var swpAccountsIcon []byte
 //go:embed assets/swp-icons/config-rune.svg
 var swpConfigurationIcon []byte
 
+//go:embed assets/swp-icons/addons-tome.svg
+var swpAddonsIcon []byte
+
 func fontAwesomeResource(name string, source []byte, colour string) fyne.Resource {
 	return fyne.NewStaticResource(name, []byte(strings.ReplaceAll(string(source), "currentColor", colour)))
 }

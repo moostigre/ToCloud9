@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	LauncherVersion      = "2.4.50"
+	LauncherVersion      = "2.5.0"
 	selfUpdateHelperFlag = "--swp-apply-update"
 )
 

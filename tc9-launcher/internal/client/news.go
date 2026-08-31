@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const NewsURL = "http://163.172.51.144:3000/api/pages?type=news"
+const NewsURL = "https://expanded.space/api/pages?type=news"
 
 type NewsItem struct {
 	Slug        string `json:"slug"`
