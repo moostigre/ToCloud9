@@ -25,6 +25,8 @@ public:
     // Set read queue for queuing monitoring handler
     void SetReadQueue(HandlersQueue* queue);
 
+    void SetReady(bool ready);
+
     void Start();
     void Stop();
 
@@ -38,6 +40,7 @@ private:
     std::string port_;
     std::unique_ptr<HttpServerImpl> impl_;
     std::atomic<bool> running_{false};
+    std::atomic<bool> ready_{false};
     std::thread server_thread_;
     TC9MonitoringDataCollectorHandler monitoring_handler_ = nullptr;
     HandlersQueue* read_queue_ = nullptr;

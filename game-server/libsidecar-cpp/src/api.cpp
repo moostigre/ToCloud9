@@ -25,8 +25,10 @@
 #include "events/event_hooks.h"
 
 #include <spdlog/spdlog.h>
-#include <memory>
+#include <chrono>
 #include <cstring>
+#include <memory>
+#include <thread>
 
 namespace {
 
@@ -51,6 +53,9 @@ struct TC9State {
 };
 
 TC9State g_state;
+
+constexpr uint32_t RegistrationMaxAttempts = 30;
+constexpr std::chrono::seconds RegistrationRetryDelay{2};
 
 }  // anonymous namespace
 
@@ -160,20 +165,29 @@ TC9_API void TC9InitLib(
         std::string server_id;
         std::vector<uint32_t> assigned_maps_vec;
 
-        bool registered = g_state.grpc_clients->RegisterGameServer(
-            port,
-            std::stoul(config.health_check_port()),
-            std::stoul(config.grpc_port()),
-            realmID,
-            isCrossRealm,
-            availableMaps ? availableMaps : "",
-            "",  // preferred hostname (empty = auto)
-            server_id,
-            assigned_maps_vec
-        );
+        bool registered = false;
+        for (uint32_t attempt = 1; attempt <= RegistrationMaxAttempts && !registered; ++attempt) {
+            registered = g_state.grpc_clients->RegisterGameServer(
+                port,
+                std::stoul(config.health_check_port()),
+                std::stoul(config.grpc_port()),
+                realmID,
+                isCrossRealm,
+                availableMaps ? availableMaps : "",
+                "",  // preferred hostname (empty = auto)
+                server_id,
+                assigned_maps_vec
+            );
+
+            if (!registered && attempt < RegistrationMaxAttempts) {
+                spdlog::warn("Game server registration attempt {}/{} failed; retrying in {} seconds",
+                             attempt, RegistrationMaxAttempts, RegistrationRetryDelay.count());
+                std::this_thread::sleep_for(RegistrationRetryDelay);
+            }
+        }
 
         if (!registered) {
-            spdlog::error("Failed to register with servers-registry");
+            spdlog::error("Failed to register with servers-registry after {} attempts", RegistrationMaxAttempts);
             return;
         }
 
@@ -195,6 +209,7 @@ TC9_API void TC9InitLib(
         }
 
         g_state.initialized = true;
+        g_state.health_server->SetReady(true);
         spdlog::info("✅ libsidecar initialized successfully (Server ID: {})", server_id);
 
     } catch (const tc9::TC9Exception& e) {
@@ -208,6 +223,10 @@ TC9_API void TC9InitLib(
 
 TC9_API void TC9GracefulShutdown() {
     try {
+        if (g_state.health_server) {
+            g_state.health_server->SetReady(false);
+        }
+
         if (!g_state.initialized) {
             return;
         }

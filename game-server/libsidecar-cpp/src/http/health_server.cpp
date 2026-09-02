@@ -31,6 +31,10 @@ void HealthServer::SetReadQueue(HandlersQueue* queue) {
     read_queue_ = queue;
 }
 
+void HealthServer::SetReady(bool ready) {
+    ready_ = ready;
+}
+
 void HealthServer::Start() {
     if (running_) {
         spdlog::warn("Health server already running");
@@ -98,8 +102,10 @@ void HealthServer::Start() {
     });
 
     // GET /ready endpoint
-    impl_->server.Get("/ready", [](const httplib::Request& /*req*/, httplib::Response& res) {
-        res.set_content(R"({"ready":true})", "application/json");
+    impl_->server.Get("/ready", [this](const httplib::Request& /*req*/, httplib::Response& res) {
+        bool ready = ready_.load();
+        res.status = ready ? 200 : 503;
+        res.set_content(ready ? R"({"ready":true})" : R"({"ready":false})", "application/json");
     });
 
     running_ = true;
@@ -118,6 +124,8 @@ void HealthServer::Start() {
 }
 
 void HealthServer::Stop() {
+    ready_ = false;
+
     if (!running_) {
         return;
     }
