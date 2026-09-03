@@ -10,6 +10,7 @@ import (
 	"image/color"
 	imagedraw "image/draw"
 	"image/png"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -134,15 +135,12 @@ func (flushColumnsLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
 	if len(objects) == 0 {
 		return
 	}
-	columnWidth := size.Width / float32(len(objects))
+	columnCount := float64(len(objects))
 	for index, object := range objects {
-		x := float32(index) * columnWidth
-		width := columnWidth
-		if index == len(objects)-1 {
-			width = size.Width - x
-		}
-		object.Move(fyne.NewPos(x, 0))
-		object.Resize(fyne.NewSize(width, size.Height))
+		left := float32(math.Round(float64(size.Width) * float64(index) / columnCount))
+		right := float32(math.Round(float64(size.Width) * float64(index+1) / columnCount))
+		object.Move(fyne.NewPos(left, 0))
+		object.Resize(fyne.NewSize(right-left, size.Height))
 	}
 }
 
@@ -1324,7 +1322,7 @@ func main() {
 			addonStatus.SetText("Preparing " + addon.Name + "…")
 			setBusy(true, "Installing addon "+addon.Name+"…")
 			go func() {
-				result, err := client.InstallAddon(current.ClientPath, addon, func(progress client.UpdateProgress) {
+				_, err := client.InstallAddon(current.ClientPath, addon, func(progress client.UpdateProgress) {
 					runOnUI(func() {
 						addonStatus.SetText(progress.Message)
 						if progress.TotalBytes > 0 {
@@ -1342,7 +1340,7 @@ func main() {
 						setBusy(false, "Addon installation failed")
 						return
 					}
-					addonStatus.SetText("Installed " + strings.Join(result.Directories, ", ") + " (version " + result.Version + "). It will be enabled on the next game launch.")
+					addonStatus.SetText(fmt.Sprintf("%d compatible addon(s) shown", len(addonResults)))
 					setBusy(false, "Addon installed")
 				})
 			}()
@@ -1352,7 +1350,6 @@ func main() {
 	addonSearchRow := container.NewBorder(nil, nil, nil, addonSearchButton, blackInput(addonSearch))
 	addonHeader := container.NewVBox(
 		textLabel("ADDONS FOR WOW 3.3.5A", 12, gold, true),
-		widget.NewLabel("Browse the dedicated Maddons Manager catalogue or search maintained GitHub backports."),
 		addonSearchRow,
 		addonStatus,
 	)
