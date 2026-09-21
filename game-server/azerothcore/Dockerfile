@@ -51,13 +51,46 @@ RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
 ARG AC_REPOSITORY=https://github.com/azerothcore/azerothcore-wotlk.git
 ARG AC_REF=ca8e6d78dee182fbe4c840dbc24a577c25844593
 ARG AC_BUILD_TYPE=RelWithDebInfo
+ARG AC_MODULES=
 
 RUN mkdir repo
 RUN cd repo && git init && \
-    test "$AC_REPOSITORY" = "https://github.com/azerothcore/azerothcore-wotlk.git" && \
+    case "$AC_REPOSITORY" in \
+      https://github.com/azerothcore/azerothcore-wotlk.git|https://github.com/moostigre/azerothcore-wotlk.git) ;; \
+      *) exit 1 ;; \
+    esac && \
     git remote add origin "$AC_REPOSITORY" && \
     git fetch --depth 1 origin "$AC_REF" && \
     git checkout FETCH_HEAD
+
+# Core repositories are explicitly allowlisted above. Every optional module is
+# still restricted to the trusted AzerothCore organization and pinned to an
+# exact commit resolved by CI.
+RUN if [ -n "$AC_MODULES" ]; then \
+      old_ifs="$IFS"; IFS=','; \
+      for entry in $AC_MODULES; do \
+        module="${entry%@*}"; module_ref="${entry#*@}"; \
+        printf '%s' "$module" | grep -Eq '^[a-z0-9][a-z0-9-]{1,62}$'; \
+        printf '%s' "$module_ref" | grep -Eq '^[a-f0-9]{40}$'; \
+        mkdir -p "/repo/modules/$module"; \
+        git -C "/repo/modules/$module" init; \
+        git -C "/repo/modules/$module" remote add origin "https://github.com/azerothcore/$module.git"; \
+        git -C "/repo/modules/$module" fetch --depth 1 origin "$module_ref"; \
+        git -C "/repo/modules/$module" checkout --detach FETCH_HEAD; \
+      done; \
+      IFS="$old_ifs"; \
+    fi
+
+# Infrastructure-only command module used to create deterministic test
+# characters through AzerothCore's own Player, quest, item and GUID APIs.
+COPY game-server/azerothcore/testrealm-module /repo/modules/mod-testrealm-fixtures
+
+# dbimport only carries /repo/data into its runtime image. Flatten the SQL from
+# each exact, trusted module revision into the matching custom database tree so
+# every ephemeral realm receives the module schema and strings it was compiled
+# against. The collector ignores symlinks and caps the copied SQL volume.
+COPY game-server/azerothcore/collect-module-sql.sh /usr/local/bin/collect-module-sql
+RUN chmod 0555 /usr/local/bin/collect-module-sql && /usr/local/bin/collect-module-sql
 
 COPY game-server/azerothcore/patches /tmp/azerothcore-patches
 RUN cd /repo && \
