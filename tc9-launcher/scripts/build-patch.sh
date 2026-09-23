@@ -90,6 +90,14 @@ while IFS= read -r module_patch; do
                 [[ "$retro_expansion" == tbc ]] || continue
                 config_enabled RetroClient.LoginScreen || continue
                 ;;
+            */features/tbc-music/patch/*)
+                [[ "$retro_expansion" == tbc ]] || continue
+                config_enabled RetroClient.Music || continue
+                ;;
+            */features/vanilla-music/patch/*)
+                [[ "$retro_expansion" == vanilla ]] || continue
+                config_enabled RetroClient.Music || continue
+                ;;
             */features/tbc-logo/patch/*)
                 [[ "$retro_expansion" == tbc ]] || continue
                 config_enabled RetroClient.Logo || continue

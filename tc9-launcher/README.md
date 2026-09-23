@@ -77,16 +77,16 @@ Vanilla, TBC, and stock WotLK login presentation. Configure it in
 RetroClient.Enable = 1
 RetroClient.Expansion = TBC
 RetroClient.LoginScreen = 1
+RetroClient.Music = 1
 RetroClient.Logo = 1
 RetroClient.RedButtons = 1
-RetroClient.TbcTalentUI = 0
-RetroClient.TbcNativeTalentTrees = 0
 ```
 
-The native talent-tree option must only be enabled when the matching generated
-`Spell.dbc`, `Talent.dbc`, and `TalentTab.dbc` are deployed to the worldserver.
-Its compatibility report records the historical talent and helper-spell data
-ported into the 3.3.5 layouts.
+The retro module restores login visuals and the matching Vanilla or TBC music.
+Set `RetroClient.Music = 0` to keep the WotLK music.
+Talent data and client integration belong to `mod-legacy-talents`. The current
+shared builder also applies that module's native DBC changes for the TBC profile;
+these require matching server DBC deployment.
 
 Set `RetroClient.Expansion = Vanilla` for the original Dark Portal and logo,
 or `RetroClient.Expansion = WotLK` to omit the retro login overrides.
@@ -155,7 +155,12 @@ The release pipeline is:
 6. Publish directly into `/srv/tc9-launcher-downloads/swp`. Nginx serves this
    allowlisted directory as static files; the disabled account-services
    application is not part of the launcher release path.
-7. Fetch the public manifest and each changed public URL. Confirm the manifest
+7. Update `/srv/tc9-launcher-downloads/swp-domain/manifest.json` as well: current
+   launchers read `/downloads/swp/v2/manifest.json`, which Nginx serves from this
+   separate directory. Preserve any endpoint-specific realm metadata when signing
+   each manifest. Updating only `/downloads/swp/manifest.json` does not update
+   current launchers.
+8. Fetch both public manifests and each changed public URL. Confirm the manifest
    version, file size, and SHA-256 all match before announcing the release.
 
 Generate a signed release with an Ed25519 private key kept outside the
@@ -189,7 +194,7 @@ Useful release checks:
 
 ```bash
 # Decode the signed payload for inspection (verification still happens in the launcher).
-curl -fsS https://launcher.expanded.space/downloads/swp/manifest.json \
+curl -fsS https://launcher.expanded.space/downloads/swp/v2/manifest.json \
   | jq -r .payload | base64 -d | jq .
 
 # Compare this result with the SHA-256 stored for the same path in the payload.
