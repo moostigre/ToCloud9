@@ -599,7 +599,7 @@ func (s *GameSession) onWorldSocketClosed() {
 		}
 
 		if err != nil {
-			s.SendSysMessage("Failed :( Returning to the characters screen.")
+			s.SendSysMessage("Your connection to the world could not be restored. Returning to character selection.")
 
 			time.Sleep(time.Second * 2) // giving some time for player to read the message
 
