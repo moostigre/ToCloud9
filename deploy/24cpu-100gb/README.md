@@ -45,19 +45,20 @@ helm upgrade ptr ./chart -n tc9-ptr --reuse-values \
   -f deploy/24cpu-100gb/values.yaml
 ```
 
-Services can burst up to 22 CPUs and 90 GiB individually, while the parent pod
-cgroup enforces the shared node memory budget and CPU quota. These ceilings are
+ToCloud9 application services can burst up to 22 CPUs and 90 GiB individually,
+while the parent pod cgroup enforces the shared node memory budget and CPU quota. These ceilings are
 not guaranteed allocations for each service. CPU and memory requests determine
 scheduling and contention priority. Services use capacity only when their work
 requires it; a single-threaded query cannot use 22 CPUs at once.
 
-MySQL requests two CPUs and 10 GiB of memory, allowing room for the 8 GiB InnoDB
-buffer pool and connection/server overhead. The previous 2-CPU / 4-GiB ceiling
-and 128-MiB buffer pool were small for this host. The pool intentionally leaves
-memory available for worldservers, test realms, Redis, NATS, and the OS. Increase
+MySQL has a 22-CPU / 60-GiB ceiling and requests two CPUs and 34 GiB of memory,
+allowing room for the 30 GiB InnoDB buffer pool and connection/server overhead.
+The previous 2-CPU / 4-GiB ceiling and 128-MiB buffer pool were small for this host.
+The pool intentionally leaves memory available for worldservers, test realms,
+Redis, NATS, and the OS. Increase
 it when the database working set grows; it is not an automatic elastic cache.
 If the environment already uses `mysql.primary.extraFlags`, preserve those flags
-when adding `--innodb-buffer-pool-size=8G`.
+when adding `--innodb-buffer-pool-size=30G`.
 
 Go services request 50m CPU / 128 MiB. AzerothCore has a separate resource override
 of 500m CPU / 3 GiB, falling back to chart-wide resources when omitted. Redis
