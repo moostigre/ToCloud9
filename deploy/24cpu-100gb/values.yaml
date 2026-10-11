@@ -1,0 +1,40 @@
+# Apply after the existing environment values. All services share the node budget;
+# these limits are burst ceilings, not reservations for each replica.
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: "22"
+    memory: 90Gi
+
+gameserver_ac:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 3Gi
+    limits:
+      cpu: "22"
+      memory: 90Gi
+
+mysql:
+  primary:
+    resourcesPreset: none
+    resources:
+      requests:
+        cpu: "2"
+        memory: 10Gi
+      limits:
+        cpu: "22"
+        memory: 90Gi
+    extraFlags: "--innodb-buffer-pool-size=8G"
+
+redis:
+  master:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: "22"
+        memory: 90Gi

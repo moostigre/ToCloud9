@@ -134,7 +134,7 @@ spec:
         #     path: /
         #     port: {{ .Values.gameserver_ac.service.internalPort | int }}
         resources:
-{{ toYaml .Values.resources | indent 10 }}
+{{ toYaml (.Values.gameserver_ac.resources | default .Values.resources) | indent 10 }}
 
 ---
 apiVersion: v1

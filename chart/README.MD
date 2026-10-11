@@ -41,3 +41,7 @@ helm install cloud9 ./chart -n tocloud9 \
 ```
 
 More parameters specified in the [values](values.yaml) file.
+
+For the 24-CPU, 100-GB K3s VM, see the [shared resource profile](../deploy/24cpu-100gb/README.md).
+The chart-wide `resources` value applies to ToCloud9 services. Set `gameserver_ac.resources`
+to override it for AzerothCore; database dependencies have their own resource settings.

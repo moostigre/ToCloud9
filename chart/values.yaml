@@ -168,6 +168,8 @@ gateway:
     type: NodePort
 
 gameserver_ac:
+  # Optional override for the chart-wide resources setting.
+  resources: {}
   initcontainer:
     # If true - downloads assets and unzip them if pvc is empty.
     download_enabled: true
