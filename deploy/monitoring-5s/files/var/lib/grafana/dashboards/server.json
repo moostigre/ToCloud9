@@ -1,0 +1,1097 @@
+{
+  "uid": "server-monitoring",
+  "title": "Serveurs — CPU, RAM, disques et températures",
+  "schemaVersion": 39,
+  "version": 12,
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": [
+    "monitoring",
+    "temperatures"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Collecte par serveur",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{instance=~\"$instance\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "title": "CPU le plus chaud par serveur",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by(host) (node_hwmon_temp_celsius{job=\"quanta-hosts\",instance=~\"$instance\",chip=~\"platform_coretemp_.*\"})",
+          "legendFormat": "{{host}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Nombre de capteurs physiques (hwmon + IPMI + SMART)",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(nodename,instance) (count by(nodename,instance) (((node_hwmon_temp_celsius{instance=~\"$instance\"} * on(job,instance,chip) group_left(chip_name) node_hwmon_chip_names or on(job,instance,chip,sensor) node_hwmon_temp_celsius{instance=~\"$instance\"}) * on(job,instance,chip,sensor) group_left(label) node_hwmon_sensor_label or on(job,instance,chip,sensor) (node_hwmon_temp_celsius{instance=~\"$instance\"} * on(job,instance,chip) group_left(chip_name) node_hwmon_chip_names or on(job,instance,chip,sensor) node_hwmon_temp_celsius{instance=~\"$instance\"})) * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})) or label_replace(count by(nodename,instance) (node_ipmi_temperature_celsius{instance=~\"$instance\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})),\"source\",\"ipmi\",\"instance\",\".*\") or label_replace(count by(nodename,instance) (smartmon_temperature_celsius_raw_value{instance=~\"$instance\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})),\"source\",\"smart\",\"instance\",\".*\") or label_replace(count by(nodename,instance) (smartmon_airflow_temperature_cel_raw_value{instance=~\"$instance\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})),\"source\",\"air\",\"instance\",\".*\"))",
+          "legendFormat": "{{nodename}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      }
+    },
+    {
+      "type": "row",
+      "title": "CPU, RAM et espace disque",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "id": 4
+    },
+    {
+      "id": 5,
+      "title": "CPU utilisé (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "expr": "(100 * (1 - avg by(instance) (rate(node_cpu_seconds_total{instance=~\"$instance\",mode=\"idle\"}[$__rate_interval])))) * on(instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "refId": "A",
+          "legendFormat": "{{nodename}} — CPU"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "RAM utilisée (GB)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "expr": "(node_memory_MemTotal_bytes{instance=~\"$instance\"} - node_memory_MemAvailable_bytes{instance=~\"$instance\"}) * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "refId": "A",
+          "legendFormat": "{{nodename}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "min": 0,
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "RAM disponible (GB)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "expr": "(node_memory_MemAvailable_bytes{instance=~\"$instance\"}) * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "refId": "A",
+          "legendFormat": "{{nodename}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "min": 0,
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Espace disque utilisé (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "expr": "(100 * (1 - node_filesystem_avail_bytes{instance=~\"$instance\",fstype!~\"tmpfs|devtmpfs|squashfs|overlay|proc|sysfs|cgroup2?|nsfs\",mountpoint!~\"/run.*|/sys.*|/proc.*\"} / node_filesystem_size_bytes{instance=~\"$instance\",fstype!~\"tmpfs|devtmpfs|squashfs|overlay|proc|sysfs|cgroup2?|nsfs\",mountpoint!~\"/run.*|/sys.*|/proc.*\"})) * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "refId": "A",
+          "legendFormat": "{{nodename}} — {{mountpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Espace disque disponible",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "expr": "(node_filesystem_avail_bytes{instance=~\"$instance\",fstype!~\"tmpfs|devtmpfs|squashfs|overlay|proc|sysfs|cgroup2?|nsfs\",mountpoint!~\"/run.*|/sys.*|/proc.*\"}) * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "refId": "A",
+          "legendFormat": "{{nodename}} — {{mountpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Network I/O",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 17,
+      "title": "Débit réseau entrant",
+      "description": "Débit par interface, vu depuis le serveur. Les interfaces physiques, bridges et interfaces des VM peuvent observer le même trafic ; leurs valeurs ne sont pas additionnées.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(8 * rate(node_network_receive_bytes_total{instance=~\"$instance\",device=~\"$device\",device!=\"lo\"}[$__rate_interval])) * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}} · {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "min": 0,
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "Débit réseau sortant",
+      "description": "Débit par interface, vu depuis le serveur. Les interfaces physiques, bridges et interfaces des VM peuvent observer le même trafic ; leurs valeurs ne sont pas additionnées.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(8 * rate(node_network_transmit_bytes_total{instance=~\"$instance\",device=~\"$device\",device!=\"lo\"}[$__rate_interval])) * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}} · {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "min": 0,
+          "decimals": 2,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "Températures des serveurs",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 1
+      },
+      "id": 10
+    },
+    {
+      "id": 19,
+      "title": "Capteur BMC Inlet_Temp",
+      "description": "Nom fourni par le BMC. Emplacement physique non confirmé; ne représente pas nécessairement l’air ambiant entrant.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_ipmi_temperature_celsius{instance=~\"$instance\",sensor=\"Inlet_Temp\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "Capteur BMC Exhaust_Temp",
+      "description": "Nom fourni par le BMC. Emplacement physique non confirmé.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_ipmi_temperature_celsius{instance=~\"$instance\",sensor=\"Exhaust_Temp\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "quanta1 — températures CPU, packages et cœurs",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_hwmon_temp_celsius{job=\"quanta-hosts\",host=\"quanta1\",chip=~\"platform_coretemp_.*\"} * on(job,instance,chip,sensor) group_left(label) node_hwmon_sensor_label",
+          "legendFormat": "{{host}} · {{chip}} · {{label}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "quanta2 — températures CPU, packages et cœurs",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 49,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_hwmon_temp_celsius{job=\"quanta-hosts\",host=\"quanta2\",chip=~\"platform_coretemp_.*\"} * on(job,instance,chip,sensor) group_left(label) node_hwmon_sensor_label",
+          "legendFormat": "{{host}} · {{chip}} · {{label}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Ventilateurs — vitesse par serveur",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_ipmi_speed_rpm{job=\"quanta-hosts\",instance=~\"$instance\",sensor=~\"SYS_FAN.*\"}",
+          "legendFormat": "{{host}} · {{sensor}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rotrpm",
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Tous les capteurs matériels (hwmon)",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((node_hwmon_temp_celsius{instance=~\"$instance\"} * on(job,instance,chip) group_left(chip_name) node_hwmon_chip_names or on(job,instance,chip,sensor) node_hwmon_temp_celsius{instance=~\"$instance\"}) * on(job,instance,chip,sensor) group_left(label) node_hwmon_sensor_label or on(job,instance,chip,sensor) (node_hwmon_temp_celsius{instance=~\"$instance\"} * on(job,instance,chip) group_left(chip_name) node_hwmon_chip_names or on(job,instance,chip,sensor) node_hwmon_temp_celsius{instance=~\"$instance\"})) * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}} · {{chip_name}} · {{chip}} · {{label}} · {{sensor}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "IPMI — CPU, RAM, chipset et températures du châssis",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 68,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_ipmi_temperature_celsius{instance=~\"$instance\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}} · {{sensor}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Disques — températures SMART",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 77,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "smartmon_temperature_celsius_raw_value{instance=~\"$instance\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}} · {{disk}} · température",
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "expr": "smartmon_airflow_temperature_cel_raw_value{instance=~\"$instance\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}} · {{disk}} · airflow",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Zones thermiques système",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 77,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus-local"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_thermal_zone_temp{instance=~\"$instance\"} * on(job,instance) group_left(nodename) max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"})",
+          "legendFormat": "{{nodename}} · {{type}} · zone {{zone}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "label": "Serveur",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus-local"
+        },
+        "query": "query_result(max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"}))",
+        "definition": "query_result(max by(job,instance,nodename) (node_uname_info{job=\"quanta-hosts\"}))",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": [],
+        "regex": "/instance=\"(?<value>[^\"]+)\".*nodename=\"(?<text>[^\"]+)\"/"
+      },
+      {
+        "name": "device",
+        "label": "Interface réseau",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus-local"
+        },
+        "query": "label_values(node_network_receive_bytes_total{instance=~\"$instance\",device!=\"lo\"}, device)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "options": []
+      }
+    ]
+  },
+  "links": [],
+  "timepicker": {
+    "refresh_intervals": [
+      "5s"
+    ]
+  }
+}

@@ -1,0 +1,582 @@
+{
+  "uid": "tc9-realms",
+  "title": "ToCloud9 — royaumes et services",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "5s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Pods prêts",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_pod_status_ready{namespace=~\"$namespace\",condition=\"true\"})",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Pods non prêts",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_pod_status_ready{namespace=~\"$namespace\",condition=\"false\"})",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Collectes TC9 réussies",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(up{namespace=~\"$namespace\",job=~\"tc9-.*\"})",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Collectes TC9 en échec",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(1-up{namespace=~\"$namespace\",job=~\"tc9-.*\"})",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Joueurs en ligne par royaume",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(namespace) (active_connections{job=\"tc9-realms\",namespace=~\"$namespace\",container=~\".*gameserver.*\"})",
+          "legendFormat": "{{namespace}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Connexions actives — serveurs et gateways",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "active_connections{namespace=~\"$namespace\"}",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Temps de boucle — moyenne",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "delay_mean{namespace=~\"$namespace\"}",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "CPU par pod (cœurs)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(namespace,pod)(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",container!=\"\",container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "RAM par pod",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(namespace,pod)(container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\",container!=\"POD\"})",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Réseau entrant par pod",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(namespace,pod)(rate(container_network_receive_bytes_total{namespace=~\"$namespace\",interface!=\"lo\"}[$__rate_interval]))",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Réseau sortant par pod",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(namespace,pod)(rate(container_network_transmit_bytes_total{namespace=~\"$namespace\",interface!=\"lo\"}[$__rate_interval]))",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Temps de boucle — percentile 95",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "delay_95_percentile{namespace=~\"$namespace\"}",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Redémarrages des containers (1 h)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "tc9-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 36,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by(namespace,pod)(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h]))",
+          "legendFormat": "{{namespace}} · {{pod}}",
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "Royaume / environnement",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "tc9-prometheus"
+        },
+        "query": "label_values(kube_pod_info{namespace=~\"tc9-(ptr|naxxramas|testrealm-slot-.*)\"}, namespace)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": "tc9-(ptr|naxxramas|testrealm-slot-.*)",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        }
+      }
+    ]
+  }
+}
